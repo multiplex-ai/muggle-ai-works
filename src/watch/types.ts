@@ -64,6 +64,8 @@ export interface WorkSession {
   loadedAtMs?: number;
   /** The muggle works build that was installed at `loadedAtMs`. */
   loadedVersion?: string;
+  /** Claude only: whether a muggle MCP server process runs under the session's process; unset when that process is not in the table. */
+  hasMuggleMcpServer?: boolean;
 }
 
 /** One global muggle works install, as `postinstall.log` records it. */
@@ -514,6 +516,10 @@ export interface WatchLedgerState {
   remoteControlRestartsBySession?: Record<string, string[]>;
   /** Continues of sessions a usage limit cut off, per session id. */
   limitResumeAttemptsBySession?: Record<string, LimitResumeAttempt[]>;
+  /** ISO timestamps of restarts made to bring a session's Muggle MCP server back, per session id. */
+  mcpRecoverRestartsBySession?: Record<string, string[]>;
+  /** When each live session was first seen without its Muggle MCP server, per session id; dropped once it has one again. */
+  mcpMissingSinceBySession?: Record<string, string>;
 }
 
 /** The turn a usage limit ended: the synthetic notice Claude wrote in its place. */
@@ -603,8 +609,10 @@ export interface WatchSnapshot {
   serviceArms?: ServiceArm[];
   reload?: ReloadReport;
   /** Absent when the pass did not run: Remote Control at startup is off, the pass is switched off, or there is no claude.ai login. */
-  remoteControl?: RemoteControlReport;
+  remoteControl?: ReconnectReport;
   limitResumes?: LimitResumeReport;
+  /** Absent when the pass did not run: it is switched off, or Claude's session listing could not be read. */
+  mcpRecover?: ReconnectReport;
 }
 
 /** Where the watch reads its sources and keeps its ledger. */
@@ -642,10 +650,19 @@ export interface ClaudeLoginRecord {
   observedAtMs: number;
 }
 
-/** What one Remote Control pass found and did. */
-export interface RemoteControlReport extends ReloadReport {
-  /** Live sessions linked to Remote Control under the current login. */
+/** What one pass that restarts sessions to reconnect them — to Remote Control or to the Muggle MCP server — found and did. */
+export interface ReconnectReport extends ReloadReport {
+  /** Live sessions already connected, needing nothing. */
   connectedSessionIds: string[];
+}
+
+/** What the Muggle MCP pass plans for this tick, before any restart runs. */
+export interface McpRecoverPlan {
+  /** Live sessions with a muggle MCP server under them. */
+  connectedSessionIds: string[];
+  decisions: ReloadDecision[];
+  /** The record to keep: when each session still missing its server was first seen so. */
+  missingSinceBySession: Record<string, string>;
 }
 
 /** A finished child process: its exit code and captured stdout. */
@@ -752,6 +769,8 @@ export interface WatchTickDeps {
   isRemoteControlKeptOn: boolean;
   /** Whether a background session a usage limit cut off is continued once the limit resets. */
   isLimitResumeEnabled: boolean;
+  /** Whether the tick restarts sessions whose Muggle MCP server is gone. */
+  isMcpRecoverEnabled: boolean;
   launchServiceLoop: ServiceLoopLauncher;
   /** Pause between listings while a restart waits for a stopped session to exit; blocks the thread when unset. */
   sleep?: (durationMs: number) => void;

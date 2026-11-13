@@ -4,8 +4,15 @@ import { isSessionRunning, readClaudeSessions, waitForSessionExit } from "./clau
 import { readCodexSessions } from "./codex-sessions.js";
 import { defaultCommandRunner } from "./command-runner.js";
 import { pinClaudeJobName, readClaudeJob } from "./claude-jobs.js";
-import { readCustomTitle, readLimitStop } from "./claude-transcripts.js";
-import { MAX_RESPAWNS_PER_TICK, MAX_RESUMES_PER_TICK, WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
+import { isMuggleMcpServerListed, readCustomTitle, readLimitStop } from "./claude-transcripts.js";
+import {
+  MAX_RESPAWNS_PER_TICK,
+  MAX_RESUMES_PER_TICK,
+  MCP_RECOVER_RESTART_WINDOW_MS,
+  REMOTE_CONTROL_RESTART_WINDOW_MS,
+  WATCH_NOTIFICATION_TITLE,
+  WATCH_REGISTRATION_SOURCE_CLI,
+} from "./constants.js";
 import { assessWatchSlots, computeCoverage, deriveWatchFindings, reconcileActiveFindings } from "./findings.js";
 import { shortSessionId } from "./format.js";
 import { readInstallHistory } from "./install-history.js";
@@ -18,6 +25,7 @@ import {
   writeWatchLedgerState,
   writeWatchSnapshot,
 } from "./ledger.js";
+import { planMcpRecoverRestarts } from "./mcp-recover.js";
 import { composeTickNotification, createDesktopNotifier } from "./notify.js";
 import { resolveWatchPaths } from "./paths.js";
 import { readMugglePluginUpdatedAtMs } from "./plugins-updated.js";
@@ -25,7 +33,8 @@ import { fetchPrLiveStatuses, isTerminalPrState } from "./pr-status.js";
 import { readProcessTable } from "./process-table.js";
 import { executeWatcherRecoveries, findRunningOwner, isSlotCloseOutDue, planWatcherRecoveries } from "./recovery.js";
 import { advancePendingReload, executeReloadFanOut, planReloadFanOut } from "./reload-plugins.js";
-import { advanceClaudeLogin, planRemoteControlRestarts, recordRemoteControlRestarts } from "./remote-control.js";
+import { advanceClaudeLogin, planRemoteControlRestarts } from "./remote-control.js";
+import { recordRestartAttempts } from "./restart-plan.js";
 import { startServiceLoops } from "./service-loop.js";
 import { createServiceLoopLauncher } from "./service-loop-launcher.js";
 import { resolveReloadTargetAtMs, stampSessionLoads } from "./session-drift.js";
@@ -53,9 +62,9 @@ import {
   type LimitResumeReport,
   type LimitStop,
   type PendingReload,
+  type ReconnectReport,
   type RecoveryExecutionDeps,
   type ReloadReport,
-  type RemoteControlReport,
   type ServiceArm,
   type SessionNamePinner,
   type TrackedProcess,
@@ -75,6 +84,7 @@ export function createDefaultWatchTickDeps(options: {
   isRecoveryEnabled: boolean;
   isRemoteControlKeptOn: boolean;
   isLimitResumeEnabled: boolean;
+  isMcpRecoverEnabled: boolean;
 }): WatchTickDeps {
   return {
     nowMs: Date.now(),
@@ -86,6 +96,7 @@ export function createDefaultWatchTickDeps(options: {
     isRecoveryEnabled: options.isRecoveryEnabled,
     isRemoteControlKeptOn: options.isRemoteControlKeptOn,
     isLimitResumeEnabled: options.isLimitResumeEnabled,
+    isMcpRecoverEnabled: options.isMcpRecoverEnabled,
     launchServiceLoop: createServiceLoopLauncher(process.platform, defaultCommandRunner),
   };
 }
@@ -185,13 +196,38 @@ function runRemoteControlPass(
   maxRestarts: number,
   deps: WatchTickDeps,
   at: string,
-): { report: RemoteControlReport; restartsBySession: Record<string, string[]>; events: WatchEvent[] } {
+): { report: ReconnectReport; restartsBySession: Record<string, string[]>; events: WatchEvent[] } {
   const plan = planRemoteControlRestarts(claudeSessions, login, restartsBySession, deps.nowMs, maxRestarts);
   const executed = executeReloadFanOut(plan.decisions, deps.runCommand, canRestartVia(deps), pinSessionNameVia(deps, claudeSessions));
   return {
     report: { ...executed, connectedSessionIds: plan.connectedSessionIds },
-    restartsBySession: recordRemoteControlRestarts(restartsBySession, executed, deps.nowMs),
+    restartsBySession: recordRestartAttempts(restartsBySession, executed, deps.nowMs, REMOTE_CONTROL_RESTART_WINDOW_MS),
     events: reloadEvents(executed, at, "restarted to reconnect Remote Control"),
+  };
+}
+
+function runMcpRecoverPass(
+  claudeSessions: WorkSession[],
+  missingSinceBySession: Record<string, string>,
+  restartsBySession: Record<string, string[]>,
+  maxRestarts: number,
+  deps: WatchTickDeps,
+  at: string,
+): { report: ReconnectReport; missingSinceBySession: Record<string, string>; restartsBySession: Record<string, string[]>; events: WatchEvent[] } {
+  const plan = planMcpRecoverRestarts(
+    claudeSessions,
+    (sessionId) => isMuggleMcpServerListed(deps.paths.claudeProjectsDir, sessionId),
+    missingSinceBySession,
+    restartsBySession,
+    deps.nowMs,
+    maxRestarts,
+  );
+  const executed = executeReloadFanOut(plan.decisions, deps.runCommand, canRestartVia(deps), pinSessionNameVia(deps, claudeSessions));
+  return {
+    report: { ...executed, connectedSessionIds: plan.connectedSessionIds },
+    missingSinceBySession: plan.missingSinceBySession,
+    restartsBySession: recordRestartAttempts(restartsBySession, executed, deps.nowMs, MCP_RECOVER_RESTART_WINDOW_MS),
+    events: reloadEvents(executed, at, "restarted to reconnect the Muggle MCP server"),
   };
 }
 
@@ -405,11 +441,32 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
     events.push(...pass.events);
     for (const sessionId of [...reload.respawnedSessionIds, ...reload.failedSessionIds]) restartedSessionIds.add(sessionId);
   }
+  let respawnsThisTick = reload ? reload.respawnedSessionIds.length + reload.failedSessionIds.length : 0;
+
+  let mcpMissingSinceBySession = state.mcpMissingSinceBySession ?? {};
+  let mcpRecoverRestartsBySession = state.mcpRecoverRestartsBySession ?? {};
+  let mcpRecover: ReconnectReport | undefined;
+  if (deps.isMcpRecoverEnabled && claudeSessions !== null) {
+    const pass = runMcpRecoverPass(
+      claudeSessions.filter((session) => !restartedSessionIds.has(session.sessionId)),
+      mcpMissingSinceBySession,
+      mcpRecoverRestartsBySession,
+      Math.max(0, MAX_RESPAWNS_PER_TICK - respawnsThisTick),
+      deps,
+      at,
+    );
+    mcpRecover = pass.report;
+    mcpMissingSinceBySession = pass.missingSinceBySession;
+    mcpRecoverRestartsBySession = pass.restartsBySession;
+    events.push(...pass.events);
+    for (const sessionId of [...mcpRecover.respawnedSessionIds, ...mcpRecover.failedSessionIds]) restartedSessionIds.add(sessionId);
+    respawnsThisTick += mcpRecover.respawnedSessionIds.length + mcpRecover.failedSessionIds.length;
+  }
 
   const observedLogin = readClaudeLogin(deps.paths.claudeGlobalConfigFile, deps.paths.claudeCredentialsFile);
   const claudeLogin = advanceClaudeLogin(state.claudeLogin, observedLogin, deps.nowMs);
   let remoteControlRestartsBySession = state.remoteControlRestartsBySession ?? {};
-  let remoteControl: RemoteControlReport | undefined;
+  let remoteControl: ReconnectReport | undefined;
   // Remote Control needs a claude.ai login; without one read this tick there is no account to link under.
   if (
     deps.isRemoteControlKeptOn &&
@@ -422,7 +479,7 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
       claudeLogin,
       claudeSessions.filter((session) => !restartedSessionIds.has(session.sessionId)),
       remoteControlRestartsBySession,
-      Math.max(0, MAX_RESPAWNS_PER_TICK - (reload ? reload.respawnedSessionIds.length + reload.failedSessionIds.length : 0)),
+      Math.max(0, MAX_RESPAWNS_PER_TICK - respawnsThisTick),
       deps,
       at,
     );
@@ -441,6 +498,8 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
     claudeLogin: claudeLogin,
     remoteControlRestartsBySession: remoteControlRestartsBySession,
     limitResumeAttemptsBySession: limitResumeAttemptsBySession,
+    mcpRecoverRestartsBySession: mcpRecoverRestartsBySession,
+    mcpMissingSinceBySession: mcpMissingSinceBySession,
   });
   const snapshot: WatchSnapshot = {
     takenAt: at,
@@ -456,6 +515,7 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
     reload: reload,
     remoteControl: remoteControl,
     limitResumes: limitResumes,
+    mcpRecover: mcpRecover,
   };
   writeWatchSnapshot(deps.paths.watchDir, snapshot);
   return snapshot;
@@ -467,8 +527,8 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
  * registered slots as programs outside every session, wake an owner session
  * only with its own PR's report, bring sessions behind the installed build up
  * to it, continue background sessions a usage limit cut off once it resets,
- * put sessions off Remote Control for the current login back on, and notify on
- * what is new.
+ * restart sessions whose Muggle MCP server is gone, put sessions off Remote
+ * Control for the current login back on, and notify on what is new.
  *
  * @throws When another run holds the watch lock.
  */

@@ -171,6 +171,7 @@ function buildMachine() {
     isAutoReloadEnabled: true,
     isRecoveryEnabled: true,
     isRemoteControlKeptOn: true,
+    isMcpRecoverEnabled: true,
     // Stands in for the detached loop: it shows in the process table and names the watch as its listener.
     launchServiceLoop: (slotDir, pr, baseBranch) => {
       launches.push([basename(slotDir), baseBranch]);
@@ -716,6 +717,73 @@ describe("runWatchTick Remote Control", () => {
   });
 });
 
+// A transcript whose startup lists the Muggle MCP server among the session's servers.
+function writeMuggleMcpTranscript(paths: WatchPaths, projectCwd: string, sessionId: string): void {
+  const startup = { type: "attachment", attachment: { type: "deferred_tools_delta", pendingMcpServers: [{ name: "plugin:muggle:muggle" }] } };
+  writeFileSync(join(paths.claudeProjectsDir, "repo", `${sessionId}.jsonl`), `${JSON.stringify({ cwd: projectCwd })}\n${JSON.stringify(startup)}\n`);
+}
+
+describe("runWatchTick Muggle MCP recovery", () => {
+  const TICK_INTERVAL_MS = 2 * 60_000;
+
+  it("restarts an idle background session whose Muggle MCP server is gone, on the tick that confirms it", () => {
+    const { deps, runner, paths, machine, projectCwd } = buildMachine();
+    for (const sessionId of ["owner-live", "idle-bg", "terminal-1"]) writeMuggleMcpTranscript(paths, projectCwd, sessionId);
+    writeRegistry(paths.claudeSessionRegistryDir, 71, "idle-bg", { status: "idle" });
+    machine.psOutput += "\n  61    70   01:00:00 /usr/bin/node /g/@muggleai/works/bin/muggle.js serve";
+
+    const first = runWatchTick(deps);
+    expect(first.mcpRecover?.connectedSessionIds).toEqual(["owner-live"]);
+    expect(first.mcpRecover?.decisions.find((decision) => decision.sessionId === "idle-bg")).toMatchObject({
+      action: ReloadAction.Defer,
+      reason: "no Muggle MCP server — confirming on the next tick",
+    });
+    expect(respawnCallsOrResumes(runner)).toEqual([]);
+
+    const second = runWatchTick({ ...deps, nowMs: NOW_MS + TICK_INTERVAL_MS });
+    expect(second.mcpRecover?.respawnedSessionIds).toEqual(["idle-bg"]);
+    expect(respawnCallsOrResumes(runner)).toEqual([["respawn", "idle-bg1"]]);
+    expect(second.mcpRecover?.decisions.find((decision) => decision.sessionId === "terminal-1")).toMatchObject({
+      action: ReloadAction.NotifyManual,
+      reason: "no Muggle MCP server — terminal session, run /mcp in it",
+    });
+    expect(readEvents(paths.watchDir).filter((event) => event.kind === WatchEventKind.Respawned).map((event) => event.message)).toEqual([
+      "restarted to reconnect the Muggle MCP server: no Muggle MCP server",
+    ]);
+    expect(Object.keys(readState(paths.watchDir).mcpRecoverRestartsBySession)).toEqual(["idle-bg"]);
+  });
+
+  it("never restarts a session whose transcript does not name the Muggle MCP server, and runs no pass when switched off", () => {
+    const unconfigured = buildMachine();
+    writeRegistry(unconfigured.paths.claudeSessionRegistryDir, 71, "idle-bg", { status: "idle" });
+    runWatchTick(unconfigured.deps);
+    const unconfiguredSecond = runWatchTick({ ...unconfigured.deps, nowMs: NOW_MS + TICK_INTERVAL_MS });
+    expect(unconfiguredSecond.mcpRecover?.decisions).toEqual([]);
+
+    const switchedOff = buildMachine();
+    writeMuggleMcpTranscript(switchedOff.paths, switchedOff.projectCwd, "idle-bg");
+    writeRegistry(switchedOff.paths.claudeSessionRegistryDir, 71, "idle-bg", { status: "idle" });
+    runWatchTick({ ...switchedOff.deps, isMcpRecoverEnabled: false });
+    const switchedOffSecond = runWatchTick({ ...switchedOff.deps, isMcpRecoverEnabled: false, nowMs: NOW_MS + TICK_INTERVAL_MS });
+    expect(switchedOffSecond.mcpRecover).toBeUndefined();
+
+    for (const machine of [unconfigured, switchedOff]) expect(respawnCallsOrResumes(machine.runner)).toEqual([]);
+  });
+
+  it("leaves a session another pass restarted this tick to that pass, and shares the restart cap", () => {
+    const { deps, runner, paths, projectCwd } = buildMachine();
+    writeMuggleMcpTranscript(paths, projectCwd, "idle-bg");
+    writeRegistry(paths.claudeSessionRegistryDir, 71, "idle-bg", { status: "idle" });
+    runWatchTick(deps);
+    appendInstall(paths.muggleInstallLogFile, NOW_MS + 60_000, "2.0.0");
+    const second = runWatchTick({ ...deps, nowMs: NOW_MS + TICK_INTERVAL_MS });
+
+    expect(second.reload?.respawnedSessionIds).toEqual(["idle-bg"]);
+    expect(second.mcpRecover?.decisions.some((decision) => decision.sessionId === "idle-bg")).toBe(false);
+    expect(respawnCallsOrResumes(runner)).toEqual([["respawn", "idle-bg1"]]);
+  });
+});
+
 describe("runReloadPluginsPass", () => {
   it("previews without restarting or writing state", () => {
     const { deps, runner, paths } = buildMachine();
@@ -896,12 +964,19 @@ describe("runWatchTick usage-limit continues", () => {
 
 describe("createDefaultWatchTickDeps", () => {
   it("wires the real edges with the requested switches", () => {
-    const deps = createDefaultWatchTickDeps({ isAutoReloadEnabled: false, isRecoveryEnabled: true, isRemoteControlKeptOn: false, isLimitResumeEnabled: true });
+    const deps = createDefaultWatchTickDeps({
+      isAutoReloadEnabled: false,
+      isRecoveryEnabled: true,
+      isRemoteControlKeptOn: false,
+      isLimitResumeEnabled: true,
+      isMcpRecoverEnabled: false,
+    });
     expect(deps.platform).toBe(process.platform);
     expect(deps.isAutoReloadEnabled).toBe(false);
     expect(deps.isRecoveryEnabled).toBe(true);
     expect(deps.isRemoteControlKeptOn).toBe(false);
     expect(deps.isLimitResumeEnabled).toBe(true);
+    expect(deps.isMcpRecoverEnabled).toBe(false);
     expect(deps.paths.watchDir).toMatch(/[\\/]\.muggle-ai[\\/]watch$/);
     expect(deps.paths.muggleInstallLogFile).toMatch(/[\\/]\.muggle-ai[\\/]postinstall\.log$/);
   });

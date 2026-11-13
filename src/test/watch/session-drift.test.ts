@@ -88,6 +88,26 @@ describe("stampSessionLoads", () => {
       ["codex", undefined, undefined],
     ]);
   });
+
+  it("marks whether a muggle MCP server runs under each session it can place, dated or not", () => {
+    const stamped = stampSessionLoads([claude("reloaded", 10), claude("plain", 20), claude("no-pid"), claude("gone", 30)], table, tracked, installs, NOW_MS);
+    expect(stamped.map((session) => [session.sessionId, session.hasMuggleMcpServer])).toEqual([
+      ["reloaded", true],
+      ["plain", false],
+      ["no-pid", undefined],
+      ["gone", undefined],
+    ]);
+
+    const undatedServer: ProcessTableEntry = { pid: 21, parentPid: 20, executableName: "node", commandLine: "node /g/@muggleai/works/bin/muggle.js serve" };
+    const [plain] = stampSessionLoads(
+      [claude("plain", 20)],
+      [...table, undatedServer],
+      [...tracked, { pid: 21, parentPid: 20, kind: TrackedProcessKind.MuggleMcpServer }],
+      installs,
+      NOW_MS,
+    );
+    expect(plain).toMatchObject({ hasMuggleMcpServer: true, loadedAtMs: NOW_MS - 30 * minuteMs });
+  });
 });
 
 describe("canRestartSessionIn", () => {

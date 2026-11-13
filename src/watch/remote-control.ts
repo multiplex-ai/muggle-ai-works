@@ -3,17 +3,15 @@ import {
   REMOTE_CONTROL_RESTART_COOLDOWN_MS,
   REMOTE_CONTROL_RESTART_WINDOW_MS,
 } from "./constants.js";
-import { hasLiveProcess } from "./session-liveness.js";
+import { restartDecisionOf, restartsWithinWindow } from "./restart-plan.js";
+import { hasLiveProcess, isTurnOver } from "./session-liveness.js";
 import {
-  ClaudeProcessStatus,
   ClaudeSessionKind,
-  ClaudeTurnStatus,
   ReloadAction,
   WorkSessionAgent,
   type ClaudeLoginRecord,
   type ObservedClaudeLogin,
   type ReloadDecision,
-  type ReloadReport,
   type WorkSession,
 } from "./types.js";
 
@@ -49,25 +47,6 @@ export function remoteControlGapOf(session: WorkSession, login: ClaudeLoginRecor
   return isStartedBeforeLogin ? "linked under an earlier login" : undefined;
 }
 
-// A restart carries running background commands over to the new process, so a
-// turn that is over is the only condition — background work included.
-function isTurnOver(session: WorkSession): boolean {
-  if (session.processStatus !== undefined) {
-    return session.processStatus === ClaudeProcessStatus.Idle || session.processStatus === ClaudeProcessStatus.Shell;
-  }
-  return session.turnStatus === ClaudeTurnStatus.Idle;
-}
-
-function recentRestartsMs(restartsBySession: Record<string, string[]>, sessionId: string, nowMs: number): number[] {
-  return (restartsBySession[sessionId] ?? [])
-    .map((restartedAt) => Date.parse(restartedAt))
-    .filter((restartedAtMs) => !Number.isNaN(restartedAtMs) && nowMs - restartedAtMs < REMOTE_CONTROL_RESTART_WINDOW_MS);
-}
-
-function decide(session: WorkSession, action: ReloadAction, reason: string): ReloadDecision {
-  return { sessionId: session.sessionId, shortId: session.shortId, name: session.name, cwd: session.cwd, action: action, reason: reason };
-}
-
 /**
  * What to do with each live Claude session so every one is reachable over
  * Remote Control by the account logged in now. A restart is the only way back
@@ -98,45 +77,23 @@ export function planRemoteControlRestarts(
       connectedSessionIds.push(session.sessionId);
       continue;
     }
-    const restartsMs = recentRestartsMs(restartsBySession, session.sessionId, nowMs);
+    const restartsMs = restartsWithinWindow(restartsBySession, session.sessionId, nowMs, REMOTE_CONTROL_RESTART_WINDOW_MS);
     if (session.kind === ClaudeSessionKind.Interactive) {
-      decisions.push(decide(session, ReloadAction.NotifyManual, `${gap} — terminal session, run /remote-control in it`));
+      decisions.push(restartDecisionOf(session, ReloadAction.NotifyManual, `${gap} — terminal session, run /remote-control in it`));
     } else if (session.kind !== ClaudeSessionKind.Background || !session.shortId) {
-      decisions.push(decide(session, ReloadAction.Skip, `${gap} — not a background session the watch can restart`));
+      decisions.push(restartDecisionOf(session, ReloadAction.Skip, `${gap} — not a background session the watch can restart`));
     } else if (restartsMs.length >= REMOTE_CONTROL_MAX_RESTARTS) {
-      decisions.push(decide(session, ReloadAction.Skip, `${gap} after ${restartsMs.length} restarts today`));
+      decisions.push(restartDecisionOf(session, ReloadAction.Skip, `${gap} after ${restartsMs.length} restarts today`));
     } else if (nowMs - Math.max(-Infinity, ...restartsMs) < REMOTE_CONTROL_RESTART_COOLDOWN_MS) {
-      decisions.push(decide(session, ReloadAction.Skip, `${gap} — restarted recently, waiting for it to link`));
+      decisions.push(restartDecisionOf(session, ReloadAction.Skip, `${gap} — restarted recently, waiting for it to link`));
     } else if (!isTurnOver(session)) {
-      decisions.push(decide(session, ReloadAction.Defer, `${gap} — turn in flight (${session.processStatus ?? session.turnStatus ?? "unknown"})`));
+      decisions.push(restartDecisionOf(session, ReloadAction.Defer, `${gap} — turn in flight (${session.processStatus ?? session.turnStatus ?? "unknown"})`));
     } else if (restartsPlanned >= maxRestarts) {
-      decisions.push(decide(session, ReloadAction.Defer, `${gap} — restart cap reached this pass`));
+      decisions.push(restartDecisionOf(session, ReloadAction.Defer, `${gap} — restart cap reached this pass`));
     } else {
       restartsPlanned++;
-      decisions.push(decide(session, ReloadAction.Respawn, gap));
+      decisions.push(restartDecisionOf(session, ReloadAction.Respawn, gap));
     }
   }
   return { connectedSessionIds: connectedSessionIds, decisions: decisions };
-}
-
-/**
- * The restart record after this pass, pruned to the counting window. A failed
- * or refused restart counts too, so neither the restart nor the workspace trust
- * probe is repeated every tick.
- */
-export function recordRemoteControlRestarts(
-  restartsBySession: Record<string, string[]>,
-  report: ReloadReport,
-  nowMs: number,
-): Record<string, string[]> {
-  const nowIso = new Date(nowMs).toISOString();
-  const nextRestartsBySession: Record<string, string[]> = {};
-  for (const sessionId of Object.keys(restartsBySession)) {
-    const recent = recentRestartsMs(restartsBySession, sessionId, nowMs).map((restartedAtMs) => new Date(restartedAtMs).toISOString());
-    if (recent.length > 0) nextRestartsBySession[sessionId] = recent;
-  }
-  for (const sessionId of [...report.respawnedSessionIds, ...report.failedSessionIds, ...report.untrustedSessionIds]) {
-    nextRestartsBySession[sessionId] = [...(nextRestartsBySession[sessionId] ?? []), nowIso];
-  }
-  return nextRestartsBySession;
 }

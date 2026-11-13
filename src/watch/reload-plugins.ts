@@ -1,4 +1,5 @@
 import { MAX_RESPAWNS_PER_TICK } from "./constants.js";
+import { restartDecisionOf as decide } from "./restart-plan.js";
 import { hasLiveProcess } from "./session-liveness.js";
 import {
   ClaudeSessionKind,
@@ -12,17 +13,6 @@ import {
   type SessionNamePinner,
   type WorkSession,
 } from "./types.js";
-
-function decide(session: WorkSession, action: ReloadAction, reason: string): ReloadDecision {
-  return {
-    sessionId: session.sessionId,
-    shortId: session.shortId,
-    name: session.name,
-    cwd: session.cwd,
-    action: action,
-    reason: reason,
-  };
-}
 
 // A session's plugins date from when it loaded them; with no stamp, its start is the best evidence there is.
 function hasCurrentPlugins(session: WorkSession, pending: PendingReload): boolean {

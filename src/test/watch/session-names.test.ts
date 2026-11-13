@@ -2,8 +2,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { nameFlagOf, pinClaudeJobName, readClaudeJob } from "../../watch/claude-jobs.js";
-import { readCustomTitle } from "../../watch/claude-transcripts.js";
-import { LIMIT_RESUME_PROMPT } from "../../watch/constants.js";
+import { isMuggleMcpServerListed, readCustomTitle } from "../../watch/claude-transcripts.js";
+import { LIMIT_RESUME_PROMPT, MCP_SERVER_LISTING_SCAN_BYTES, MUGGLE_MCP_SERVER_NAME } from "../../watch/constants.js";
 import { isPlaceholderSessionName, resolveSessionName } from "../../watch/session-names.js";
 import { makeTempDir } from "./fixtures.js";
 
@@ -48,6 +48,23 @@ describe("readCustomTitle", () => {
     writeFileSync(join(projectsDir, "repo", "sess.jsonl"), entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n");
     expect(readCustomTitle(projectsDir, "sess")).toBe("works guardrail");
     expect(readCustomTitle(projectsDir, "gone")).toBeUndefined();
+  });
+});
+
+describe("isMuggleMcpServerListed", () => {
+  it("finds the server Claude listed at startup or at a later resume, and nothing in a transcript that never lists it", () => {
+    const projectsDir = makeTempDir("projects");
+    mkdirSync(join(projectsDir, "repo"));
+    const listing = JSON.stringify({ type: "attachment", attachment: { pendingMcpServers: [{ name: MUGGLE_MCP_SERVER_NAME }] } });
+    const filler = `${JSON.stringify({ type: "user", message: { content: "x".repeat(1024) } })}\n`.repeat(Math.ceil((MCP_SERVER_LISTING_SCAN_BYTES + 1) / 1024));
+    writeFileSync(join(projectsDir, "repo", "started.jsonl"), `${listing}\n${filler}`);
+    writeFileSync(join(projectsDir, "repo", "resumed.jsonl"), `${filler}${listing}\n`);
+    writeFileSync(join(projectsDir, "repo", "unlisted.jsonl"), `${JSON.stringify({ type: "attachment", attachment: { pendingMcpServers: [{ name: "claude.ai Expedia" }] } })}\n`);
+
+    expect(isMuggleMcpServerListed(projectsDir, "started")).toBe(true);
+    expect(isMuggleMcpServerListed(projectsDir, "resumed")).toBe(true);
+    expect(isMuggleMcpServerListed(projectsDir, "unlisted")).toBe(false);
+    expect(isMuggleMcpServerListed(projectsDir, "gone")).toBe(false);
   });
 });
 

@@ -8,6 +8,8 @@ export interface WatchTickFlags {
   remoteControl: boolean;
   /** Commander's `--no-limit-resume` negation: false reports sessions a usage limit cut off without continuing them. */
   limitResume: boolean;
+  /** Commander's `--no-mcp-recover` negation: false reports sessions missing their Muggle MCP server without restarting them. */
+  mcpRecover: boolean;
   /** Print the full snapshot as JSON instead of a summary line. */
   json?: boolean;
 }

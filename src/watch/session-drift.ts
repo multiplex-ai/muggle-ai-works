@@ -42,10 +42,11 @@ function owningSessionPid(server: TrackedProcess, entriesByPid: Map<number, Proc
 }
 
 /**
- * Stamp each live Claude session with when it last loaded its plugins and the
- * build installed then. A session loads plugins when its process starts, and
- * `/reload-plugins` restarts its muggle MCP server, so the later of the two is
- * the load time. A session whose process is not in the table is left unstamped.
+ * Stamp each live Claude session with whether a muggle MCP server runs under
+ * it, when it last loaded its plugins, and the build installed then. A session
+ * loads plugins when its process starts, and `/reload-plugins` restarts its
+ * muggle MCP server, so the later of the two is the load time. A session whose
+ * process is not in the table is left unstamped.
  */
 export function stampSessionLoads(
   sessions: WorkSession[],
@@ -56,17 +57,22 @@ export function stampSessionLoads(
 ): WorkSession[] {
   const entriesByPid = new Map(table.map((entry) => [entry.pid, entry]));
   const sessionPids = new Set(sessions.flatMap((session) => (session.pid === undefined ? [] : [session.pid])));
+  const serverSessionPids = new Set<number>();
   const newestServerStartByPid = new Map<number, number>();
   for (const server of tracked) {
-    if (server.kind !== TrackedProcessKind.MuggleMcpServer || server.ageMs === undefined) continue;
+    if (server.kind !== TrackedProcessKind.MuggleMcpServer) continue;
     const sessionPid = owningSessionPid(server, entriesByPid, sessionPids);
     if (sessionPid === undefined) continue;
+    serverSessionPids.add(sessionPid);
+    if (server.ageMs === undefined) continue;
     newestServerStartByPid.set(sessionPid, Math.max(newestServerStartByPid.get(sessionPid) ?? 0, nowMs - server.ageMs));
   }
   return sessions.map((session) => {
-    const processAgeMs = session.pid === undefined ? undefined : entriesByPid.get(session.pid)?.ageMs;
-    if (session.agent !== WorkSessionAgent.Claude || processAgeMs === undefined || session.pid === undefined) return session;
+    if (session.agent !== WorkSessionAgent.Claude || session.pid === undefined || !entriesByPid.has(session.pid)) return session;
+    const stamped = { ...session, hasMuggleMcpServer: serverSessionPids.has(session.pid) };
+    const processAgeMs = entriesByPid.get(session.pid)?.ageMs;
+    if (processAgeMs === undefined) return stamped;
     const loadedAtMs = Math.max(nowMs - processAgeMs, newestServerStartByPid.get(session.pid) ?? 0);
-    return { ...session, loadedAtMs: loadedAtMs, loadedVersion: versionInstalledAt(installs, loadedAtMs) };
+    return { ...stamped, loadedAtMs: loadedAtMs, loadedVersion: versionInstalledAt(installs, loadedAtMs) };
   });
 }

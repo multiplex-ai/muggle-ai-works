@@ -12,15 +12,15 @@ export function optionalString(candidate: unknown): string | undefined {
 }
 
 /**
- * The first `SESSION_FILE_HEAD_BYTES` of a file as UTF-8, or undefined when it cannot be read.
+ * The first `byteCount` bytes of a file as UTF-8, or undefined when it cannot be read.
  * Session metadata sits on a transcript's first lines, and the files themselves run to megabytes.
  */
-export function readFileHead(filePath: string): string | undefined {
+export function readFileHead(filePath: string, byteCount: number = SESSION_FILE_HEAD_BYTES): string | undefined {
   let fileDescriptor: number | undefined;
   try {
     fileDescriptor = openSync(filePath, "r");
-    const buffer = Buffer.alloc(SESSION_FILE_HEAD_BYTES);
-    const bytesRead = readSync(fileDescriptor, buffer, 0, SESSION_FILE_HEAD_BYTES, 0);
+    const buffer = Buffer.alloc(byteCount);
+    const bytesRead = readSync(fileDescriptor, buffer, 0, byteCount, 0);
     return buffer.subarray(0, bytesRead).toString("utf-8");
   } catch {
     return undefined;

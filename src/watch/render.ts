@@ -7,6 +7,7 @@ import {
   WatcherRecoveryOutcome,
   WatchFindingSeverity,
   WorkSessionAgent,
+  type ReconnectReport,
   type ReloadReport,
   type RepoCoverage,
   type WatchSlotAssessment,
@@ -61,6 +62,19 @@ function processSummary(snapshot: WatchSnapshot): string {
 
 function countDecisions(report: ReloadReport, action: ReloadAction): number {
   return report.decisions.filter((decision) => decision.action === action).length;
+}
+
+/** @param manualCommand - What the user runs in a session the watch cannot restart, e.g. `/mcp`. */
+function reconnectRows(report: ReconnectReport, manualCommand: string): string[] {
+  return report.decisions.map((decision) => {
+    const outcome = report.untrustedSessionIds.includes(decision.sessionId)
+      ? ` — refused: its workspace takes no background restart, run ${manualCommand} in it`
+      : report.failedSessionIds.includes(decision.sessionId)
+        ? " — restart failed"
+        : "";
+    const label = (decision.name ?? "").slice(0, REMOTE_CONTROL_NAME_COLUMN_WIDTH).padEnd(REMOTE_CONTROL_NAME_COLUMN_WIDTH);
+    return `  ${decision.action.padEnd(14)} ${shortSessionId(decision.sessionId)} ${label} ${decision.reason}${outcome}`;
+  });
 }
 
 /** `muggle watch status` text for a snapshot. */
@@ -123,6 +137,18 @@ export function renderWatchStatus(snapshot: WatchSnapshot, nowMs: number): strin
     );
   }
 
+  if (snapshot.mcpRecover) {
+    const mcpRecover = snapshot.mcpRecover;
+    const manualCount =
+      countDecisions(mcpRecover, ReloadAction.Skip) + countDecisions(mcpRecover, ReloadAction.NotifyManual) + mcpRecover.untrustedSessionIds.length;
+    lines.push(
+      "",
+      `Muggle MCP: ${mcpRecover.connectedSessionIds.length} connected, ${mcpRecover.respawnedSessionIds.length} restarted, ` +
+        `${mcpRecover.failedSessionIds.length} failed, ${countDecisions(mcpRecover, ReloadAction.Defer)} waiting, ${manualCount} need /mcp by hand`,
+      ...reconnectRows(mcpRecover, "/mcp"),
+    );
+  }
+
   if (snapshot.remoteControl) {
     const remoteControl = snapshot.remoteControl;
     lines.push(
@@ -131,16 +157,8 @@ export function renderWatchStatus(snapshot: WatchSnapshot, nowMs: number): strin
         `${remoteControl.failedSessionIds.length} failed, ${remoteControl.untrustedSessionIds.length} refused, ` +
         `${countDecisions(remoteControl, ReloadAction.Defer)} waiting, ` +
         `${countDecisions(remoteControl, ReloadAction.Skip) + countDecisions(remoteControl, ReloadAction.NotifyManual)} skipped`,
+      ...reconnectRows(remoteControl, "/remote-control"),
     );
-    for (const decision of remoteControl.decisions) {
-      const outcome = remoteControl.untrustedSessionIds.includes(decision.sessionId)
-        ? " — refused: its workspace takes no background restart, run /remote-control in it"
-        : remoteControl.failedSessionIds.includes(decision.sessionId)
-          ? " — restart failed"
-          : "";
-      const label = (decision.name ?? "").slice(0, REMOTE_CONTROL_NAME_COLUMN_WIDTH).padEnd(REMOTE_CONTROL_NAME_COLUMN_WIDTH);
-      lines.push(`  ${decision.action.padEnd(14)} ${shortSessionId(decision.sessionId)} ${label} ${decision.reason}${outcome}`);
-    }
   }
 
   const limitDecisions = snapshot.limitResumes?.decisions ?? [];

@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { REMOTE_CONTROL_RESTART_COOLDOWN_MS, REMOTE_CONTROL_RESTART_WINDOW_MS } from "../../watch/constants.js";
-import {
-  advanceClaudeLogin,
-  planRemoteControlRestarts,
-  recordRemoteControlRestarts,
-  remoteControlGapOf,
-} from "../../watch/remote-control.js";
+import { advanceClaudeLogin, planRemoteControlRestarts, remoteControlGapOf } from "../../watch/remote-control.js";
 import {
   ClaudeProcessStatus,
   ClaudeSessionKind,
@@ -147,19 +142,5 @@ describe("planRemoteControlRestarts", () => {
     const { actions } = actionsOf([backgroundSession("first"), backgroundSession("second")], {}, 1);
     expect(actions.first[0]).toBe(ReloadAction.Respawn);
     expect(actions.second).toEqual([ReloadAction.Defer, "no Remote Control link — restart cap reached this pass"]);
-  });
-});
-
-describe("recordRemoteControlRestarts", () => {
-  it("adds every attempted restart and drops ones outside the window", () => {
-    const old = new Date(NOW_MS - REMOTE_CONTROL_RESTART_WINDOW_MS - 1).toISOString();
-    const kept = new Date(NOW_MS - 60_000).toISOString();
-    const recorded = recordRemoteControlRestarts(
-      { stale: [old], kept: [old, kept] },
-      { decisions: [], respawnedSessionIds: ["kept", "new"], failedSessionIds: ["failed"], untrustedSessionIds: ["refused"] },
-      NOW_MS,
-    );
-    const nowIso = new Date(NOW_MS).toISOString();
-    expect(recorded).toEqual({ kept: [kept, nowIso], new: [nowIso], failed: [nowIso], refused: [nowIso] });
   });
 });

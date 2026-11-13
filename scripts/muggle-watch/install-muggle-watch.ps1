@@ -3,8 +3,9 @@
 # Codex sessions, their processes and every PR-watch slot, alerts on dead or deaf
 # watchers, red CI and stale branches, restarts the loop of a registered slot
 # whose watcher died, fans plugin reloads out across sessions, and restarts
-# sessions that are off Remote Control under the current login, and continues
-# background sessions a usage limit cut off once that limit resets.
+# sessions that are off Remote Control under the current login or whose Muggle
+# MCP server is gone, and continues background sessions a usage limit cut off
+# once that limit resets.
 #
 # The task runs the global @muggleai/works install, whose path survives
 # `muggle upgrade`, so the service always runs the current release. Only the
@@ -24,6 +25,7 @@ param(
     [switch]$NoRecovery,
     [switch]$NoRemoteControl,
     [switch]$NoLimitResume,
+    [switch]$NoMcpRecover,
     # Return once the task is registered; its trigger runs the first tick a minute later.
     [switch]$NoWait,
     [switch]$Uninstall
@@ -67,6 +69,7 @@ if ($NoAutoReload) { $tickFlags += "--no-auto-reload" }
 if ($NoRecovery) { $tickFlags += "--no-recovery" }
 if ($NoRemoteControl) { $tickFlags += "--no-remote-control" }
 if ($NoLimitResume) { $tickFlags += "--no-limit-resume" }
+if ($NoMcpRecover) { $tickFlags += "--no-mcp-recover" }
 $launcherArguments = @("`"$installedLauncher`"", "`"$($nodeCommand.Source)`"", "`"$MuggleEntry`"") + $tickFlags
 
 # wscript.exe rather than node.exe is what keeps every run off the desktop; see

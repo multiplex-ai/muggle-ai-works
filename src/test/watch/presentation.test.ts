@@ -274,6 +274,34 @@ describe("renderWatchStatus", () => {
     expect(renderWatchStatus(snapshot, Date.parse(takenAt))).not.toContain("Remote Control:");
   });
 
+  it("renders the Muggle MCP pass with every session it acted on or left for /mcp", () => {
+    const text = renderWatchStatus(
+      {
+        ...snapshot,
+        mcpRecover: {
+          connectedSessionIds: ["c1", "c2", "c3"],
+          decisions: [
+            { sessionId: "6f573971-79d6", name: "org Capacity mng", action: ReloadAction.Respawn, reason: "no Muggle MCP server" },
+            { sessionId: "b1d44745-0000", action: ReloadAction.Defer, reason: "no Muggle MCP server — confirming on the next tick" },
+            { sessionId: "terminal-1", action: ReloadAction.NotifyManual, reason: "no Muggle MCP server — terminal session, run /mcp in it" },
+            { sessionId: "a0944a7f-0000", name: "refused one", action: ReloadAction.Respawn, reason: "no Muggle MCP server" },
+            { sessionId: "f9548732-d9a9", action: ReloadAction.Respawn, reason: "no Muggle MCP server" },
+          ],
+          respawnedSessionIds: ["6f573971-79d6"],
+          failedSessionIds: ["f9548732-d9a9"],
+          untrustedSessionIds: ["a0944a7f-0000"],
+        },
+      },
+      Date.parse(takenAt),
+    );
+    expect(text).toContain("Muggle MCP: 3 connected, 1 restarted, 1 failed, 1 waiting, 2 need /mcp by hand");
+    expect(text).toMatch(/respawn\s+6f573971 org Capacity mng\s+no Muggle MCP server\n/);
+    expect(text).toMatch(/a0944a7f refused one\s+no Muggle MCP server — refused: its workspace takes no background restart, run \/mcp in it/);
+    expect(text).toMatch(/f9548732\s+no Muggle MCP server — restart failed/);
+    expect(text).toMatch(/defer\s+b1d44745\s+no Muggle MCP server — confirming on the next tick/);
+    expect(renderWatchStatus(snapshot, Date.parse(takenAt))).not.toContain("Muggle MCP:");
+  });
+
   it("renders each session a usage limit stopped with what became of it", () => {
     const text = renderWatchStatus(
       {

@@ -26,7 +26,14 @@ import {
   type IStackStatusReport,
   type IStoppedService,
 } from "@muggleai/mcp";
-import type { StackCheckFlags, StackClaimFlags, StackReleaseFlags, StackStatusFlags } from "./service-stack-types.js";
+import { STACK_WAIT_SECONDS } from "./service-stack-constants.js";
+import type {
+  IStackClaimOutput,
+  StackCheckFlags,
+  StackClaimFlags,
+  StackReleaseFlags,
+  StackStatusFlags,
+} from "./service-stack-types.js";
 
 const NEED_PATTERN = /^(\d+)=(.+?)(?:@([0-9a-f]{7,40}))?$/i;
 
@@ -49,8 +56,26 @@ export function parseStackNeed(value: string): IStackNeedRequest {
   return { port: Number(match[1]), runDir: match[2], headSha: match[3] };
 }
 
-/** Human-readable summary of a claim, one fact per line. */
-export function renderStackClaimSummary(report: IStackClaimReport): string {
+/**
+ * The claim a busy checkout runs in the background to wait for its turn: same checkout, label and needs, re-asking
+ * for up to {@link STACK_WAIT_SECONDS}. Its exit on the grant is what wakes the waiting session.
+ *
+ * Output shape: `muggle stack claim --cwd '/wt/a' --label 'feat-x' --need '3000=/wt/a/web' --wait 1800 --json`
+ */
+export function buildStackWaitCommand(params: { cwd: string; label?: string; needs: string[] }): string {
+  const parts = ["muggle stack claim", `--cwd ${quoteArgument(params.cwd)}`];
+  if (params.label) parts.push(`--label ${quoteArgument(params.label)}`);
+  for (const need of params.needs) parts.push(`--need ${quoteArgument(need)}`);
+  parts.push(`--wait ${STACK_WAIT_SECONDS}`, "--json");
+  return parts.join(" ");
+}
+
+/**
+ * Human-readable summary of a claim, one fact per line.
+ *
+ * @param waitCommand - For a busy claim, the background wait from {@link buildStackWaitCommand}.
+ */
+export function renderStackClaimSummary(report: IStackClaimReport, waitCommand?: string): string {
   if (report.verdict === StackClaimVerdict.Granted) {
     const lines = [`${report.verdict}: the stack is this checkout's to use (${report.cwd})`];
     for (const port of report.plan) {
@@ -70,6 +95,7 @@ export function renderStackClaimSummary(report: IStackClaimReport): string {
   }
   lines.push(...report.stoppedServices.map(describeStoppedService));
   lines.push(`retry in ~${seconds(report.retryAfterMs ?? 0)}; your place is kept while you keep asking`);
+  if (waitCommand) lines.push(`or wait in the background; it exits once the stack is yours: ${waitCommand}`);
   return lines.join("\n");
 }
 
@@ -121,7 +147,12 @@ export async function stackClaimCommand(flags: StackClaimFlags): Promise<void> {
     needs: needs,
     waitMs: flags.wait === undefined ? undefined : Number(flags.wait) * 1000,
   });
-  writeReport({ json: flags.json, report: report, summary: renderStackClaimSummary(report) });
+  const waitCommand =
+    report.verdict === StackClaimVerdict.Busy
+      ? buildStackWaitCommand({ cwd: report.cwd, label: flags.label, needs: flags.need })
+      : undefined;
+  const output: IStackClaimOutput = { ...report, waitCommand: waitCommand };
+  writeReport({ json: flags.json, report: output, summary: renderStackClaimSummary(report, waitCommand) });
   if (report.verdict === StackClaimVerdict.Busy) process.exitCode = BUSY_EXIT_CODE;
 }
 
@@ -170,6 +201,11 @@ function writeReport(params: { json?: boolean; report: unknown; summary: string 
 function describeStoppedService(service: IStoppedService): string {
   const what = service.name ?? (service.commandLine || "untracked listener");
   return `stopped ${service.port}: ${what} (PID ${service.pid}) — no lease needs it any more`;
+}
+
+// Single quotes keep a Windows path's backslashes literal in both bash and PowerShell.
+function quoteArgument(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function shortSha(sha: string | null): string {

@@ -58,7 +58,7 @@ Size the rebase per [`cycle-size.md`](cycle-size.md) with `pre_cycle_sha = rebas
 - **Accepted** — minor: the walkthrough settles on the last full run. The cycle is done.
 - **Rejected** — full: the resolution changed the PR's own lines on an app-logic path. Run E2E per [`e2e-acceptance.md`](e2e-acceptance.md) on the pushed head, then repost the walkthrough — fire [`postPRVisualWalkthrough`](../muggle-preferences/preference-gates/postPRVisualWalkthrough.md), then [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A.
 
-When that E2E cannot start — a peer holds the shared stack's lease, a readiness halt — the push stands and the run is owed: append `E2E owed: <head> (<reason>)` to `state.md`, keep the claim in line, and run it the moment the stack is free. A later cycle that runs E2E on this PR clears the line. A run that fails after the push goes to fix-ci like any red walkthrough on a pushed head.
+When that E2E cannot start — a peer holds the shared stack's lease, a readiness halt — the push stands and the run is owed: append `E2E owed: <head> (<reason>)` to `state.md`, arm the claim's background wait ([claim-stack](../muggle-test-prepare/steps/claim-stack.md)), and run it when that wait's grant wakes the session. A later cycle that runs E2E on this PR clears the line. A run that fails after the push goes to fix-ci like any red walkthrough on a pushed head.
 
 ### Step 5 — Escalate (can't resolve / budget spent)
 

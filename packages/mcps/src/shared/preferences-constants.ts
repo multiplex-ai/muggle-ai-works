@@ -26,6 +26,8 @@ export const PREFERENCES_VERSION = 1;
  * `autoInstallCiWorkflow` asks — it writes a file into the user's repository,
  * and a default is not consent to do that. `autoInstallWatchService` asks for
  * the same reason: it schedules an OS job that restarts idle sessions.
+ * `tasteProfileUpload` asks because it sends a summary of the user's taste off
+ * the machine, which needs the user's own opt-in.
  * `defaultExecutionMode` resolves to `local` rather than re-prompting.
  */
 export const DEFAULT_PREFERENCES: IPreferences = {
@@ -54,6 +56,7 @@ export const DEFAULT_PREFERENCES: IPreferences = {
   [PreferenceKey.AutoInstallWatchService]: PreferenceValue.Ask,
   [PreferenceKey.ReusePreparePlan]: PreferenceValue.Always,
   [PreferenceKey.FrontloadQuestions]: PreferenceValue.Always,
+  [PreferenceKey.TasteProfileUpload]: PreferenceValue.Ask,
   [PreferenceKey.WatcherLifetime]: PreferenceValue.SevenDays,
   [PreferenceKey.MaxCatchUpRebases]: PreferenceValue.TwentyRebases,
 };
@@ -125,6 +128,7 @@ export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly Preferenc
   [PreferenceKey.AutoInstallWatchService]: ALWAYS_ASK_NEVER,
   [PreferenceKey.ReusePreparePlan]: ALWAYS_ASK_NEVER,
   [PreferenceKey.FrontloadQuestions]: ALWAYS_NEVER,
+  [PreferenceKey.TasteProfileUpload]: ALWAYS_ASK_NEVER,
   [PreferenceKey.WatcherLifetime]: WATCHER_LIFETIMES,
   [PreferenceKey.MaxCatchUpRebases]: CATCH_UP_REBASE_BUDGETS,
 };
@@ -205,6 +209,9 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
   },
   [PreferenceKey.FrontloadQuestions]: {
     description: "Ask every question a run can foresee in one batch before its first long-running step; after that, take a best-effort default for anything new and list it in the final report instead of blocking — decisions only the user may make stay open and are surfaced, never defaulted",
+  },
+  [PreferenceKey.TasteProfileUpload]: {
+    description: "After the taste profile is distilled from this machine's review comments, E2E feedback and approved requests, upload it (screened for secrets and emails) so Muggle Test runs use it as guidance — the raw signals never leave the machine",
   },
   [PreferenceKey.WatcherLifetime]: {
     description: "How long a muggle-pr-followup watch loop polls before retiring itself — 1d, 7d, or never (unbounded, which leaves no time-based reaper for an orphaned loop)",

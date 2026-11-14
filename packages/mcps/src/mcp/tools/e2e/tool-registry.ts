@@ -72,7 +72,8 @@ import {
   buildTestStatesPath,
   pickTestCaseTestStateFields,
 } from "./test-state-upstream.js";
-import { MUGGLE_TEST_PREFIX } from "./upstream-route-constants.js";
+import { uploadTasteProfileAsync } from "./taste-profile-upload.js";
+import { MUGGLE_TEST_PREFIX, TASTE_PROFILE_PATH } from "./upstream-route-constants.js";
 import { BUG_REPORTS_PATH } from "../../../shared/bug-report/index.js";
 
 /** Default workflow timeout. */
@@ -2005,6 +2006,62 @@ const userFeedbackTools: IQaToolDefinition[] = [
   },
 ];
 
+const tasteProfileTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-taste-profile-upload",
+    description:
+      "Upload the local taste profile (from muggle-local-taste-profile-set) so Muggle Test runs use it as guidance. Screens every statement first, redacting API keys, tokens, JWTs, private keys, emails and password-like key=value pairs; the raw signal journal is never sent. Honors the tasteProfileUpload preference: 'never' refuses, 'ask' returns outcome 'needs-consent' with the screened profile until called with hasUserApprovedThisUpload: true, 'always' uploads. Replaces each uploaded section remotely and keeps the rest. Returns { outcome, message, redactionCount, hasUploadedUserSection, uploadedProjectIds, remoteProfile }.",
+    inputSchema: schemas.TasteProfileUploadInputSchema,
+    mapToUpstream: () => {
+      throw new Error("LOCAL_HANDLER_ONLY");
+    },
+    localHandler: async (input, correlationId) => {
+      const toolInput = input as z.infer<typeof schemas.TasteProfileUploadInputSchema>;
+      return uploadTasteProfileAsync({
+        hasUserApprovedThisUpload: toolInput.hasUserApprovedThisUpload ?? false,
+        correlationId: correlationId,
+      });
+    },
+  },
+  {
+    name: "muggle-remote-taste-profile-get",
+    description:
+      "Get the caller's uploaded taste profile. Without projectId: { userSection, projectSections }. With projectId: { userSection, projectSection }, the two blocks a run for that project reads. A section never uploaded is null.",
+    inputSchema: schemas.TasteProfileGetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TasteProfileGetInputSchema>;
+      return {
+        method: "GET",
+        path: TASTE_PROFILE_PATH,
+        queryParams: { projectId: toolInput.projectId },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-taste-profile-delete",
+    description:
+      "Delete the caller's uploaded taste profile, or only one project's section when projectId is given. Future runs stop using what was deleted. The local profile is untouched; clear it with muggle-local-taste-profile-clear.",
+    inputSchema: schemas.TasteProfileDeleteInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TasteProfileDeleteInputSchema>;
+      return {
+        method: "DELETE",
+        path: TASTE_PROFILE_PATH,
+        queryParams: { projectId: toolInput.projectId },
+      };
+    },
+    mapFromUpstream: (_response, input) => {
+      const toolInput = input as z.infer<typeof schemas.TasteProfileDeleteInputSchema>;
+      return {
+        success: true,
+        message: toolInput.projectId
+          ? `Deleted the uploaded taste section for project ${toolInput.projectId}.`
+          : "Deleted the uploaded taste profile.",
+      };
+    },
+  },
+];
+
 const bugReportTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-bug-report-create",
@@ -2226,6 +2283,7 @@ export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...apiKeyTools,
   ...userFeedbackTools,
   ...bugReportTools,
+  ...tasteProfileTools,
   ...authTools,
 ];
 
@@ -2283,7 +2341,7 @@ export async function executeQaTool(
 
     // Check if tool has a local handler
     if (tool.localHandler) {
-      const localHandlerOutput = await tool.localHandler(validatedInput);
+      const localHandlerOutput = await tool.localHandler(validatedInput, correlationId);
       return {
         content: JSON.stringify(localHandlerOutput, null, 2),
         isError: false,

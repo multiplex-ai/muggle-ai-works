@@ -156,5 +156,5 @@ export interface IQaToolDefinition {
    * Local handler for tools that don't make upstream calls.
    * Used for auth tools and recommendation tools.
    */
-  localHandler?: (input: unknown) => Promise<unknown>;
+  localHandler?: (input: unknown, correlationId: string) => Promise<unknown>;
 }

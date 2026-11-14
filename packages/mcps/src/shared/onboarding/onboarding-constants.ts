@@ -136,6 +136,16 @@ export const ONBOARDING_CHOICE_GROUPS: readonly IOnboardingChoiceLayout[] = [
     ],
   },
   {
+    header: "Taste profile",
+    key: PreferenceKey.TasteProfileUpload,
+    prompt: "Upload your taste profile so test runs judge your app the way you would? It is a short summary distilled on this machine, screened for secrets first.",
+    optionLabels: [
+      { value: PreferenceValue.Always, label: "Always — upload it whenever it is rebuilt" },
+      { value: PreferenceValue.Ask, label: "Ask me each time" },
+      { value: PreferenceValue.Never, label: "Never — keep it on this machine" },
+    ],
+  },
+  {
     header: "Questions",
     key: PreferenceKey.FrontloadQuestions,
     prompt: "When should a long run ask you its questions?",

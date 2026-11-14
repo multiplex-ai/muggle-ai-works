@@ -34,9 +34,9 @@ import {
 } from "../shared/preferences-service.js";
 
 describe("PreferenceKey enum", () => {
-  it("has exactly 27 keys", () => {
+  it("has exactly 28 keys", () => {
     const keys = Object.values(PreferenceKey);
-    expect(keys).toHaveLength(27);
+    expect(keys).toHaveLength(28);
   });
 
   it("contains all expected keys", () => {
@@ -64,6 +64,7 @@ describe("PreferenceKey enum", () => {
     expect(PreferenceKey.AutoInstallCiWorkflow).toBe("autoInstallCiWorkflow");
     expect(PreferenceKey.ReusePreparePlan).toBe("reusePreparePlan");
     expect(PreferenceKey.FrontloadQuestions).toBe("frontloadQuestions");
+    expect(PreferenceKey.TasteProfileUpload).toBe("tasteProfileUpload");
     expect(PreferenceKey.WatcherLifetime).toBe("watcherLifetime");
     expect(PreferenceKey.MaxCatchUpRebases).toBe("maxCatchUpRebases");
   });
@@ -132,6 +133,7 @@ describe("DEFAULT_PREFERENCES", () => {
       [PreferenceKey.VerboseOutput]: PreferenceValue.Never,
       [PreferenceKey.AutoInstallCiWorkflow]: PreferenceValue.Ask,
       [PreferenceKey.AutoInstallWatchService]: PreferenceValue.Ask,
+      [PreferenceKey.TasteProfileUpload]: PreferenceValue.Ask,
       [PreferenceKey.WatcherLifetime]: PreferenceValue.SevenDays,
       [PreferenceKey.MaxCatchUpRebases]: PreferenceValue.TwentyRebases,
     };
@@ -488,6 +490,26 @@ describe("autoInstallCiWorkflow", () => {
       PreferenceValue.Ask,
       PreferenceValue.Never,
     ]);
+  });
+});
+
+describe("tasteProfileUpload", () => {
+  // It sends a summary of the user's taste off the machine; a default is not consent to do that.
+  it("defaults to ask", () => {
+    expect(DEFAULT_PREFERENCES[PreferenceKey.TasteProfileUpload]).toBe(PreferenceValue.Ask);
+  });
+
+  it("accepts always, ask and never", () => {
+    expect(PREFERENCE_ALLOWED_VALUES[PreferenceKey.TasteProfileUpload]).toEqual([
+      PreferenceValue.Always,
+      PreferenceValue.Ask,
+      PreferenceValue.Never,
+    ]);
+  });
+
+  it("is settable through validatePreference", () => {
+    expect(validatePreference("tasteProfileUpload", "never")).toBe(true);
+    expect(validatePreference("tasteProfileUpload", "local")).toBe(false);
   });
 });
 

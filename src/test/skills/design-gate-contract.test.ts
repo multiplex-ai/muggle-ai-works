@@ -73,6 +73,10 @@ describe("Stage 2.5 holds the build for the user's approval", () => {
     expect(read(FRONTLOAD_GATE_DOC)).toMatch(/approving a design before it is built/);
   });
 
+  it("never reopens a design state.md already records as finalized", () => {
+    expect(designStage).toMatch(/\*\*Already finalized\.\*\*.*The stage is closed: reopen nothing/s);
+  });
+
   it("exempts only a user-supplied spec or a trivial change", () => {
     expect(designStage).toMatch(/\*\*Spec supplied\.\*\*/);
     expect(designStage).toMatch(/\*\*Trivial change\.\*\*.*When unsure, it is not trivial\./s);

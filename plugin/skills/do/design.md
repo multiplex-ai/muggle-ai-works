@@ -15,6 +15,7 @@ Finalize the change's design before any code. Stage 3 never edits a file until `
 
 ## Which path
 
+0. **Already finalized.** `state.md` already carries a `Design: finalized` line — a resumed session, or a re-entry from address-reviews, fix-ci or E2E repair. The stage is closed: reopen nothing, write no `design.md`, ask nothing, and go on to Stage 3. The line is the record of the decision; a missing `design.md` or an approval not shown in this conversation does not make it doubtful.
 1. **Spec supplied.** The task itself is a design or spec the user wrote — a linked or pasted doc that already decides the approach. It is final as given: record `Design: finalized — user-supplied spec <path or link>`, write no `design.md`, and ask nothing.
 2. **Trivial change.** One file, or a few lines across files, with no design surface: no new module, interface, data shape, or behavior a reasonable reader could build two ways. `requirements.md` is the whole spec: record `Design: finalized — trivial, requirements.md is the spec (<one-line reason>)` and ask nothing. When unsure, it is not trivial.
 3. **Everything else** goes through the approval below.

@@ -1009,7 +1009,8 @@
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
             "matches": "(^|\\n|[\"'])Stage 2 done — "
           }
-        ]
+        ],
+        "maxAskUserQuestions": 1
       }
     },
     {
@@ -1100,7 +1101,7 @@
                   "tool": "Write",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
-                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Blockers\nnone\n"
+                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n- Design: finalized — approved 2026-10-21T21:05:00Z\n\n## Blockers\nnone\n"
                   }
                 },
                 {
@@ -1195,7 +1196,7 @@
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
                     "old_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).",
-                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria."
+                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z"
                   }
                 }
               ]
@@ -1374,7 +1375,7 @@
                   "tool": "Write",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
-                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Blockers\nnone\n"
+                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n- Design: finalized — approved 2026-10-21T21:05:00Z\n\n## Blockers\nnone\n"
                   }
                 },
                 {
@@ -1469,7 +1470,7 @@
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
                     "old_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).",
-                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria."
+                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z"
                   }
                 }
               ]
@@ -1637,8 +1638,8 @@
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.",
-                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
+                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z",
+                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
                   }
                 },
                 {
@@ -1813,7 +1814,7 @@
                   "tool": "Write",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
-                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Blockers\nnone\n"
+                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n- Design: finalized — approved 2026-10-21T21:05:00Z\n\n## Blockers\nnone\n"
                   }
                 },
                 {
@@ -1908,7 +1909,7 @@
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
                     "old_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).",
-                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria."
+                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z"
                   }
                 }
               ]
@@ -2076,8 +2077,8 @@
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.",
-                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
+                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z",
+                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
                   }
                 },
                 {
@@ -2356,7 +2357,7 @@
                   "tool": "Write",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
-                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Blockers\nnone\n"
+                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n- Design: finalized — approved 2026-10-21T21:05:00Z\n\n## Blockers\nnone\n"
                   }
                 },
                 {
@@ -2451,7 +2452,7 @@
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
                     "old_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).",
-                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria."
+                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z"
                   }
                 }
               ]
@@ -2619,8 +2620,8 @@
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.",
-                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
+                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z",
+                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
                   }
                 },
                 {
@@ -2987,7 +2988,7 @@
                   "tool": "Write",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
-                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Blockers\nnone\n"
+                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n- Design: finalized — approved 2026-10-21T21:05:00Z\n\n## Blockers\nnone\n"
                   }
                 },
                 {
@@ -3082,7 +3083,7 @@
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
                     "old_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).",
-                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria."
+                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z"
                   }
                 }
               ]
@@ -3250,8 +3251,8 @@
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.",
-                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
+                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z",
+                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
                   }
                 },
                 {
@@ -3760,7 +3761,7 @@
                   "tool": "Write",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
-                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Blockers\nnone\n"
+                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n- Design: finalized — approved 2026-10-21T21:05:00Z\n\n## Blockers\nnone\n"
                   }
                 },
                 {
@@ -3855,7 +3856,7 @@
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
                     "old_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).",
-                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria."
+                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z"
                   }
                 }
               ]
@@ -4023,8 +4024,8 @@
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.",
-                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
+                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z",
+                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
                   }
                 },
                 {
@@ -4645,7 +4646,7 @@
                   "tool": "Write",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
-                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Blockers\nnone\n"
+                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n- Design: finalized — approved 2026-10-21T21:05:00Z\n\n## Blockers\nnone\n"
                   }
                 },
                 {
@@ -4740,7 +4741,7 @@
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
                     "old_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).",
-                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria."
+                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z"
                   }
                 }
               ]
@@ -4908,8 +4909,8 @@
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.",
-                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
+                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z",
+                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
                   }
                 },
                 {
@@ -5625,7 +5626,7 @@
                   "tool": "Write",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
-                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Blockers\nnone\n"
+                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n- Design: finalized — approved 2026-10-21T21:05:00Z\n\n## Blockers\nnone\n"
                   }
                 },
                 {
@@ -5720,7 +5721,7 @@
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
                     "old_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).",
-                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria."
+                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z"
                   }
                 }
               ]
@@ -5888,8 +5889,8 @@
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.",
-                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
+                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z",
+                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\nStage 2.5 done — approval — design.md approved 2026-10-21T21:05:00Z\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
                   }
                 },
                 {

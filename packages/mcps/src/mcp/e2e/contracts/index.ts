@@ -37,6 +37,7 @@ export * from "./test-case-display-resolution-schemas.js";
 export * from "./test-state-schemas.js";
 export * from "./test-state-types.js";
 export * from "./bug-report-schemas.js";
+export * from "./taste-profile-schemas.js";
 
 /**
  * Pagination input schema shared by list tools.

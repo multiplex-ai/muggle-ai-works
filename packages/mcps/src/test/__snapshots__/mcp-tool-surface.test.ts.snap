@@ -67,6 +67,26 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-local-run-steps-get",
   },
   {
+    "description": "Clear the local taste profile (~/.muggle-ai/taste/profile.json), or only one project's section when projectId is given. The signal journal and any uploaded profile are untouched; delete the uploaded one with muggle-remote-taste-profile-delete.",
+    "name": "muggle-local-taste-profile-clear",
+  },
+  {
+    "description": "Get the local taste profile (~/.muggle-ai/taste/profile.json) with each section's statement character count against the budget. Returns JSON { path, statementCharacterBudget, userSectionStatementCharacters, projectSectionStatementCharacters, profile: { userSection, projectSections } }; an unbuilt profile has a null userSection and no projectSections.",
+    "name": "muggle-local-taste-profile-get",
+  },
+  {
+    "description": "Write distilled sections to the local taste profile (~/.muggle-ai/taste/profile.json). Each named section replaces the stored one; others are kept. Refuses a section whose statements total more than 4000 characters. Nothing is uploaded; that is muggle-remote-taste-profile-upload.",
+    "name": "muggle-local-taste-profile-set",
+  },
+  {
+    "description": "Append one taste signal to the local, append-only journal (~/.muggle-ai/taste/signals.jsonl). Call it when a Muggle flow sees the user's taste: a review comment a muggle-do cycle addressed (kind ReviewComment, with its classification), E2E feedback the user submitted (E2eFeedback), or the goal and criteria of a request the user approved (ApprovedRequest). The journal never leaves the machine; /muggle-taste-profile distills it into the profile.",
+    "name": "muggle-local-taste-signal-append",
+  },
+  {
+    "description": "List taste signals from the local journal (~/.muggle-ai/taste/signals.jsonl), oldest first, optionally narrowed by projectId, kind, or the newest N. Returns JSON { count, signals: [{ kind, text, projectId, classification, sourceRef, recordedAt }] }.",
+    "name": "muggle-local-taste-signal-list",
+  },
+  {
     "description": "Emit a structured Muggle Test skill telemetry event. Failure-mode events ('pre-execution-classification', 'replay-failure-classified', 'replay-failure-resolved', 'regen-failure-classified', 'regen-failure-resolved') record how a skill classified a replay or regen situation and what action the user took — recorded to ~/.muggle-ai/telemetry/failure-events.jsonl. Workflow events ('muggle-do:cycle', 'muggle-do:escalation', 'muggle-do:resolve-reminder', 'muggle-pr-followup:tick', 'muggle-pr-followup:bootstrap') carry their catalog payload in metadata — recorded to ~/.muggle-ai/telemetry/workflow-events.jsonl. Never fails the skill on telemetry errors.",
     "name": "muggle-local-telemetry-event-emit",
   },
@@ -285,6 +305,18 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
   {
     "description": "Update an existing secret. Returns the updated secret's metadata; the value is never echoed back.",
     "name": "muggle-remote-secret-update",
+  },
+  {
+    "description": "Delete the caller's uploaded taste profile, or only one project's section when projectId is given. Future runs stop using what was deleted. The local profile is untouched; clear it with muggle-local-taste-profile-clear.",
+    "name": "muggle-remote-taste-profile-delete",
+  },
+  {
+    "description": "Get the caller's uploaded taste profile. Without projectId: { userSection, projectSections }. With projectId: { userSection, projectSection }, the two blocks a run for that project reads. A section never uploaded is null.",
+    "name": "muggle-remote-taste-profile-get",
+  },
+  {
+    "description": "Upload the local taste profile (from muggle-local-taste-profile-set) so Muggle Test runs use it as guidance. Screens every statement first, redacting API keys, tokens, JWTs, private keys, emails and password-like key=value pairs; the raw signal journal is never sent. Honors the tasteProfileUpload preference: 'never' refuses, 'ask' returns outcome 'needs-consent' with the screened profile until called with hasUserApprovedThisUpload: true, 'always' uploads. Replaces each uploaded section remotely and keeps the rest. Returns { outcome, message, redactionCount, hasUploadedUserSection, uploadedProjectIds, remoteProfile }.",
+    "name": "muggle-remote-taste-profile-upload",
   },
   {
     "description": "Resolve a test case's prerequisite chain from the project's test-plan graph. Returns { testCaseId, ancestors, orphan } where \`ancestors\` is an array of test case IDs ordered immediate-parent → root (empty when the case is a graph root). \`orphan: true\` means the case has no graph node, so it has no prerequisites. Call this before generating or replaying a script to ensure every prerequisite test case already has a ready script.",
@@ -563,6 +595,11 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-local-run-result-get",
   "muggle-local-run-result-list",
   "muggle-local-run-steps-get",
+  "muggle-local-taste-profile-clear",
+  "muggle-local-taste-profile-get",
+  "muggle-local-taste-profile-set",
+  "muggle-local-taste-signal-append",
+  "muggle-local-taste-signal-list",
   "muggle-local-telemetry-event-emit",
   "muggle-local-telemetry-skill-emit",
   "muggle-local-test-script-get",
@@ -618,6 +655,9 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-secret-list",
   "muggle-remote-secret-type-list",
   "muggle-remote-secret-update",
+  "muggle-remote-taste-profile-delete",
+  "muggle-remote-taste-profile-get",
+  "muggle-remote-taste-profile-upload",
   "muggle-remote-test-case-ancestors-get",
   "muggle-remote-test-case-bulk-preview-submit",
   "muggle-remote-test-case-create",

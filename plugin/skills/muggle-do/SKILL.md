@@ -17,8 +17,9 @@ Runs an autonomous dev cycle from requirements to PR. **Fire and review:** user 
 
 | # | Stage | File |
 | :- | :---- | :--- |
-| 1 | Pre-flight (only user-facing stage) | [`../do/pre-flight.md`](../do/pre-flight.md) |
+| 1 | Pre-flight (one questioning turn) | [`../do/pre-flight.md`](../do/pre-flight.md) |
 | 2 | Requirements | [`../do/requirements.md`](../do/requirements.md) |
+| 2.5 | Design — user approves before any code | [`../do/design.md`](../do/design.md) |
 | 3 | Build | [`../do/build.md`](../do/build.md) |
 | 4 | Impact analysis | [`../do/impact-analysis.md`](../do/impact-analysis.md) |
 | 5 | Unit tests | [`../do/unit-tests.md`](../do/unit-tests.md) |
@@ -45,18 +46,19 @@ The pipeline table lists **pointers, not summaries**. Open each stage's file and
 **Bootstrap before any code, in order:**
 1. Emit telemetry — [`../_shared/telemetry-emit.md`](../_shared/telemetry-emit.md), `skillName: "muggle-do"`.
 2. Create `~/.muggle-ai/muggle-do/sessions/<slug>/` with `state.md` + `iterations/001.md` (pre-flight owns this; do it even when running unattended).
-3. `TodoWrite` one item per stage 1–8, Stages 5.5 and 7.5 included — these stages are the checklist; never swap in your own decomposition. Several changes → one set of stage items per change.
+3. `TodoWrite` one item per stage 1–8, Stages 2.5, 5.5 and 7.5 included — these stages are the checklist; never swap in your own decomposition. Several changes → one set of stage items per change.
 
 **Per stage:** read the file → execute it → append one marker line to `iterations/<NNN>.md`, always in the form `Stage <N> done — <evidence>`, citing the evidence that file requires (jest exit code, E2E verdict + `runId`, screenshot path). The marker is the stage's last line, written after its notes, and carries the evidence itself: nothing between `done` and `—`, never a pointer such as `Stage 4 done (see below) —`. A stage is done only when its evidence is written, never on recollection.
 
 ### "Autonomous" / "without my intervention" collapses exactly one thing
-Best-effort the Stage-1 questionnaire and don't ask. It does **not** license skipping telemetry, session artifacts, requirements, unit tests, E2E (`autoE2ETest` defaults to `always`), browser verification, the gate below, the Stage-7.5 repair loop, or the watcher hand-off. Stage 7.5 investigates and repairs unattended too; only its user decision is deferred — left open for the user and carried by the watcher, never waived on their behalf. Run the whole pipeline silently — never a shortcut.
+Best-effort the Stage-1 questionnaire and don't ask. It does **not** license skipping telemetry, session artifacts, requirements, the Stage-2.5 design approval, unit tests, E2E (`autoE2ETest` defaults to `always`), browser verification, the gate below, the Stage-7.5 repair loop, or the watcher hand-off. Stage 7.5 investigates and repairs unattended too; only its user decision is deferred — left open for the user and carried by the watcher, never waived on their behalf. Run the whole pipeline silently — never a shortcut.
 
 ### Definition of Done — gates before Stages 5.5 and 7
 Each line holds, or is waived by a one-line reason written into `state.md` (silence is not a waiver).
 
 Before Stage 5.5 opens the PR:
 - `requirements.md` written (forward runs)
+- `Design: finalized` recorded in `state.md` before Stage 3 edited a file (forward runs)
 - Build clean — typecheck + lint on changed files
 - New/changed logic carries unit tests (authored in Stage 3; Stage 5 only runs the suite)
 - Unit suite run, PASS recorded
@@ -85,7 +87,7 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 
 | Preference | Gate |
 | :--------- | :--- |
-| `frontloadQuestions` | Every stage — `always` keeps Stage 1 the only questioning turn and Stage 7.5's decision open rather than asked; `never` lets a later stage ask when a question arises ([rule](../muggle-preferences/preference-gates/frontloadQuestions.md)) |
+| `frontloadQuestions` | Every stage — `always` keeps Stage 1 the only questioning turn besides Stage 2.5's design approval, and Stage 7.5's decision open rather than asked; `never` lets a later stage ask when a question arises ([rule](../muggle-preferences/preference-gates/frontloadQuestions.md)) |
 | `autoE2ETest` | Stage 6 — run E2E every cycle (default `always`), or fold into pre-flight |
 | `autoResolveConflicts` | On rebase conflict — `always` resolves autonomously behind a verify-or-rollback gate, `never` aborts + escalates; resolve from the configured preference (don't assume a default) |
 | `autoRouteBuildToMuggleDo` | Front-door guardrail — route build/implement/fix requests through this pipeline (build delegated to superpowers); fired by the UserPromptSubmit guardrail, default `ask` |
@@ -107,7 +109,8 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 
 ## Guardrails
 
-- Stage 1 and Stage 7.5's user decision are the only user-facing forward stages. Stages 2–7 don't ask mid-cycle; blocker → pre-flight bug.
+- Stage 1, Stage 2.5's design approval, and Stage 7.5's user decision are the only user-facing forward stages. Stages 2 and 3–7 don't ask mid-cycle; blocker → pre-flight bug.
+- No code before a finalized design: Stage 3 starts only after Stage 2.5 records `Design: finalized` in `state.md`.
 - Same stage failing 3× → escalate.
 - Each route's entry file declares the stage files every run of that route opens, and a Stop gate holds the turn until they are read. A turn that ends before its route's last stage — a readiness halt, an escalation, a pause for a background run — records why with `echo "MUGGLE_STAGE_SKIP: <reason>"`.
 - 3 repair iterations reach E2E with failures → put the surviving failures to the user (an open decision when unattended), ship with `[E2E FAILING]`, and hand to the watcher.

@@ -50,6 +50,7 @@ export const FORWARD_STAGE_FILES = [
   "do/input-routing.md",
   "do/pre-flight.md",
   "do/requirements.md",
+  "do/design.md",
   "do/build.md",
   "do/impact-analysis.md",
   "do/unit-tests.md",

@@ -30,6 +30,7 @@ import {
   MAX_WATCH_BLOCKS,
   MAX_BUILD_BLOCKS,
   MUGGLE_DO_STAGES_AFTER_BUILD,
+  MUGGLE_DO_STAGES_BEFORE_BUILD,
   NEXT_OPTIONS_OFFER_TOOL_NAMES,
   WATCH_HEARTBEAT_STALE_MS,
   WATCH_HOLD_PHRASE_PREFIX,
@@ -744,7 +745,7 @@ function buildFollowthroughGate(): string {
       ? `Do not end the turn yet. This session took a build/implement/fix request but no PR was opened. ` +
         `A root cause written into the transcript ships nothing — once the session ends it is gone, and the ` +
         `watcher gate never fires because it only looks at PRs that exist. Carry the work to a PR via ` +
-        `${muggleSkill("/muggle-do")}, which runs requirements → build → ${MUGGLE_DO_STAGES_AFTER_BUILD}. ` +
+        `${muggleSkill("/muggle-do")}, which runs ${MUGGLE_DO_STAGES_BEFORE_BUILD} → build → ${MUGGLE_DO_STAGES_AFTER_BUILD}. ` +
         `If no PR is owed here (the user changed their mind, the fix landed in another repo, the answer was ` +
         `advice rather than a change), tell the user why and run \`echo "MUGGLE_BUILD_SKIP: <reason>"\` — ` +
         `that records the skip and keeps this gate quiet for the rest of the session.`
@@ -957,8 +958,8 @@ function buildRouter(): string {
   if (isMuggleDoInvoked) return "{}";
   const ctx =
     `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, ` +
-    `route it through ${muggleSkill("/muggle-do")} — which runs requirements → build (delegated to superpowers' ` +
-    `design→plan→review) → ${MUGGLE_DO_STAGES_AFTER_BUILD}. ` +
+    `route it through ${muggleSkill("/muggle-do")} — which runs ${MUGGLE_DO_STAGES_BEFORE_BUILD} → build ` +
+    `(delegated to superpowers' plan→review) → ${MUGGLE_DO_STAGES_AFTER_BUILD}. ` +
     `If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
   return envelope("UserPromptSubmit", ctx, host);
 }

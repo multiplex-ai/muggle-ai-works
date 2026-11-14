@@ -1,6 +1,7 @@
 ---
 mandatoryStages:
   - requirements.md
+  - design.md
   - build.md
   - impact-analysis.md
   - unit-tests.md
@@ -12,7 +13,9 @@ mandatoryStages:
 
 # Pre-flight Agent (Stage 1)
 
-You are running the **only user-facing stage** of the muggle-do dev cycle. Your job is to consolidate every ambiguity — task scope, repos, validation strategy, environment, credentials, PR target — into a **single turn** so the rest of the cycle can run unattended.
+You are running the muggle-do dev cycle's **one questioning turn** — the only other user stop is Stage 2.5's design approval ([`design.md`](design.md)). Your job is to consolidate every real decision — task scope, repos, validation strategy, environment, credentials — into a **single turn** so the rest of the cycle can run unattended.
+
+**Never ask what has a sensible default.** Branch name, PR target, a detected local URL, the top-matching project, the worktree, and syncing onto the base are taken silently from their defaults and preference gates, then listed in the handoff line, where the user overrides by replying. A question earns its place only when no default exists or a wrong guess costs more than the round trip.
 
 **Non-negotiable:** Never split pre-flight across multiple turns. Detect what you can silently, then ask every remaining question at once. If you find yourself asking a follow-up, you failed — fold the follow-up back into this file so the next run covers it.
 
@@ -56,25 +59,25 @@ Before asking anything, gather every fact you can resolve without the user:
 Present **one `AskUserQuestion`** (or the platform's structured-selection equivalent) that collects every remaining decision. Use detected values as defaults whenever possible. Questions to include, in this order:
 
 1. **Task scope clarification** — only if the task description is genuinely ambiguous. Offer 2–3 interpretations as options plus "Other — type a clarification." If the task is unambiguous, omit.
-2. **Repo(s) to modify** — pre-selected with the best silent match. "Confirm <repo>" / "Change repo" / "Multi-repo (list them)". When multi-repo, state in the option whether the PRs ship as a wave — one change, tested together in one E2E run — or a stream of independent changes, each tested on its own, per step 11 and [`wave-or-stream.md`](wave-or-stream.md) — no separate question.
-3. **Branch name** — default: `users/<user>/<slug>` derived from the task. "Use default" / "Use different name (type)".
-4. **Validation strategy** — the single most important question. Options:
+2. **Repo(s) to modify** — only when no single repo is the obvious match; an obvious match is taken silently. "Use <best match>" / "Change repo" / "Multi-repo (list them)". When multi-repo, state in the option whether the PRs ship as a wave — one change, tested together in one E2E run — or a stream of independent changes, each tested on its own, per step 11 and [`wave-or-stream.md`](wave-or-stream.md) — no separate question.
+3. **Branch name** — never asked: `users/<user>/<slug>` derived from the task.
+4. **Validation strategy** — the single most important decision, asked only when the change does not settle it: a UI change with a detected dev server takes Local E2E silently, a change with no app surface (docs, skill text, config) takes Unit tests only silently. Options:
    - **Local E2E** (Muggle Test Electron against a running localhost) — default if a dev server was detected.
    - **Staging replay** — for changes already deployed to a preview URL.
    - **Unit tests only** — skip browser E2E, acceptable for pure refactors or backend-only changes. Deliverable checks on video, image, audio, data, research, or email artifacts still run.
    - **Skip validation** — explicit opt-out; the PR title gets `[UNVERIFIED]`.
-5. **Local URL** — only if validation is Local E2E. Default: the detected port. "Confirm `<detected>`" / "Type a different URL".
+5. **Local URL** — only if validation is Local E2E and no dev server was detected; a detected one is taken silently. "Type the URL".
 6. **Backend reachable?** — only if validation is Local E2E and a backend URL is declared. If the health probe failed, ask "Start the backend now and I'll re-probe" / "Proceed anyway" / "Skip to unit tests only".
-7. **Muggle Test project** — pre-selected with the best silent match. "Use <top match>" / "Use a different existing project (list)" / "Create new".
+7. **Muggle Test project** — only if validation needs one and no project clearly matches; a clear top match is taken silently. "Use <top match>" / "Use a different existing project (list)" / "Create new".
 8. **Test-user credentials** — only if validation is Local E2E AND the Auth0 tenant in the repo differs from the tenant the managed secrets were created under. Options: "Reuse existing secrets (may fail if tenant mismatch — will surface failure)" / "Create new secrets for this tenant (provide email + password)" / "Switch to staging replay".
-9. **PR target branch** — default: the repo's default branch. "Use default" / "Target a different branch".
+9. **PR target branch** — never asked: the repo's default branch.
 10. **Re-auth Muggle Test MCP?** — only if auth was missing/expired. "Log in now" / "Abort".
 11. **Worktree for this change?** — gate: [`autoUseWorktree`](../muggle-preferences/preference-gates/autoUseWorktree.md). Options: create a dedicated worktree (per [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md)), or work in the current checkout.
 12. **Sync onto the base branch first?** — gate: [`autoRebase`](../muggle-preferences/preference-gates/autoRebase.md), only if `behind > 0`. The answer governs every sync this cycle, not just one: before the dev server / E2E, and again immediately before stage 7 pushes. Options: sync with the base, or run as-is.
 13. **Run E2E at the end of every cycle?** — gate: [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md), only if step 10's silent detection resolved to `ask`. Options: always run stage 6, or ask each cycle.
 14. **Add the Muggle E2E check to this repo's CI?** — gate: [`autoInstallCiWorkflow`](../muggle-preferences/preference-gates/autoInstallCiWorkflow.md), only if step 12 found the workflow missing and the gate resolved to `ask`. Record the answer in `state.md` as `CI check: add | skip`; stage 7 acts on it.
 
-If fewer than two of the above need the user, still gather them in a single turn — never open a second round.
+If fewer than two of the above need the user, still gather them in a single turn — never open a second round. If none do, ask nothing: write `state.md` and go straight to the handoff. Never add a "confirm these defaults?" question.
 
 ## Output
 
@@ -119,11 +122,11 @@ Also initialize `iterations/001.md` with a header:
 
 ## Handoff
 
-Return control to the muggle-do driver with a one-line summary: `pre-flight complete, proceeding silently through stages 2–7`. Do not print the pre-flight answers again — they are in `state.md` and the iteration log.
+Return control to the muggle-do driver with a one-line summary naming the defaults taken: `pre-flight complete — <repo>, branch <branch> → <PR target>, <validation>; reply to override. Proceeding to requirements and design.` Print nothing else of the answers — they are in `state.md` and the iteration log.
 
 ## Non-negotiables
 
 - Exactly **one** user turn. Zero follow-up questions inside this stage.
 - Silent detection **must** run before the questionnaire — never ask for a value you can detect.
-- Every detected value is a default, not a lock — the user can always override via "Type a different …".
+- Every detected value is a default, not a lock — the user overrides it by replying to the handoff line.
 - Missing `state.md` or `iterations/001.md` at the end of this stage is a stage failure. Several changes → one session directory each, all written before Stage 2 starts on the first.

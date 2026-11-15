@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildGenerationActionScript,
   buildReplayActionScript,
+  buildWebsiteScanActionScript,
 } from "../mcp/local/services/action-script-builders.js";
+import { WEBSITE_SCAN_GOAL, WEBSITE_SCAN_WORKFLOW_TYPE } from "../mcp/local/services/website-scan-constants.js";
 import { RunEnvironment } from "../mcp/e2e/contracts/run-environment.js";
 import { LlmTierEnum } from "../shared/llm-tier-types.js";
 import type { TestCaseDetails, TestScriptDetails } from "../mcp/local/contracts/project-schemas.js";
@@ -406,5 +408,35 @@ describe("light-tier workflowParams", () => {
     expect(actionParams(buildGenerationActionScript({ ...generationBase, isLightMode: false }))).not.toHaveProperty("workflowParams");
     expect(actionParams(buildReplayActionScript(replayBase))).not.toHaveProperty("workflowParams");
     expect(actionParams(buildReplayActionScript({ ...replayBase, isLightMode: false }))).not.toHaveProperty("workflowParams");
+  });
+});
+
+describe("buildWebsiteScanActionScript", () => {
+  const script = buildWebsiteScanActionScript({
+    projectId: PROJECT_ID,
+    url: "https://example.com",
+    runId: "run-scan-1",
+    ownerUserId: "user-1",
+    useCaseDiscoverMemoryId: "memory-1",
+    targetUseCaseCandidateCount: 12,
+  });
+
+  it("routes Studio to use-case discovery on the local lane with the memory and cap", () => {
+    expect(script.actionType).toBe("Exploratory");
+    expect(actionParams(script)).toMatchObject({
+      type: WEBSITE_SCAN_WORKFLOW_TYPE,
+      projectId: PROJECT_ID,
+      ownerId: "user-1",
+      workflowRunId: "run-scan-1",
+      useCaseDiscoverMemoryId: "memory-1",
+      targetUseCaseCandidateCount: 12,
+      runEnvironmentType: "local",
+    });
+  });
+
+  it("starts at the site URL with the cloud scan's goal", () => {
+    expect(script.url).toBe("https://example.com");
+    expect(script.goal).toBe(WEBSITE_SCAN_GOAL);
+    expect(script.steps).toEqual([]);
   });
 });

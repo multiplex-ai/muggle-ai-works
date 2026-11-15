@@ -18,6 +18,7 @@ import {
   helpCommand,
   initCommand,
   llmSourceCommand,
+  localScanCommand,
   loginCommand,
   logoutCommand,
   serveCommand,
@@ -238,6 +239,21 @@ function createProgram (): Command {
     .description("Show every lease, the line, and the services prepare tracks")
     .option("--json", "Print the full report as JSON")
     .action(stackStatusCommand);
+
+  const local = program
+    .command("local")
+    .description("Run Muggle AI work in the local Studio on the model source you chose (muggle llm-source)");
+
+  local
+    .command("scan")
+    .description("Scan a site for use-case candidates in the local Studio; reports candidates, never approves them")
+    .requiredOption("--project-id <id>", "Cloud project the candidates belong to")
+    .requiredOption("--url <siteUrl>", "Site URL the scan starts from")
+    .option("--max-candidates <n>", "Stop once the scan has found this many candidates (default 30)")
+    .option("--timeout-ms <n>", "Stop the scan after this long, keeping what it found (default 1800000)")
+    .option("--show-ui", "Show the Studio window")
+    .option("--json", "Print the report as one JSON line")
+    .action(localScanCommand);
 
   program
     .command("ci-install")

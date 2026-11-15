@@ -14,6 +14,7 @@ export { e2ePlanCommand } from "../../../../src/cli/e2e-plan.js";
 export { helpCommand } from "../../../../src/cli/help.js";
 export { initCommand } from "../../../../src/cli/init/init-command.js";
 export { llmSourceCommand } from "../../../../src/cli/llm-source/llm-source-command.js";
+export { localScanCommand } from "../../../../src/cli/local/local-scan.js";
 export { loginCommand, logoutCommand, statusCommand } from "../../../../src/cli/login.js";
 export { pricingCommand } from "../../../../src/cli/pricing.js";
 export { prWalkthroughCheckCommand } from "../../../../src/cli/pr-walkthrough-check.js";

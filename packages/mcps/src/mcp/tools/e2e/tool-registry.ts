@@ -41,6 +41,7 @@ import {
 import { mapOrganizationList } from "./organization-list-transform.js";
 import { mapPricingCatalog, mapWalletPackageList } from "./pricing-transform.js";
 import { PRICING_GET_TOOL_NAME, WALLET_PACKAGES_PATH } from "./pricing-transform-constants.js";
+import { USE_CASE_DISCOVERY_MEMORY_GET_TOOL_NAME } from "./use-case-discovery-constants.js";
 import {
   mapProjectDisplayResolutions,
   toProjectResolutionUpstreamFields,
@@ -199,7 +200,7 @@ const projectTools: IQaToolDefinition[] = [
 
 const useCaseTools: IQaToolDefinition[] = [
   {
-    name: "muggle-remote-use-case-discovery-memory-get",
+    name: USE_CASE_DISCOVERY_MEMORY_GET_TOOL_NAME,
     description: "Get the use case discovery memory for a project, including all discovered use case candidates.",
     inputSchema: schemas.UseCaseDiscoveryMemoryGetInputSchema,
     mapToUpstream: (input) => {

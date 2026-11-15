@@ -50,11 +50,12 @@ watch_slot_has_key() {
 # conversation-comment ids and the unresolved threads a loop's last poll saw —
 # every one of them either reported or already floored — and the red head,
 # rebase key and blocked digest it reported, with the block (`blocked_for`, that
-# block's watermark digest) the digest was reported under.
+# block's watermark digest) the digest was reported under, and the repair-wait
+# retry time it reported elapsed.
 watch_record_reported() {
-    local slot="$1" review="$2" comment="$3" conversation="$4" threads="$5" ci_red="$6" rebase="$7" blocked_digest="$8" blocked_for="$9"
-    printf 'REV=%s\nCOM=%s\nCONV=%s\nTHREADS="%s"\nCIRED="%s"\nREBASED="%s"\nBLOCKED_CIDIGEST="%s"\nBLOCKED_FOR="%s"\n' \
-        "$review" "$comment" "$conversation" "$threads" "$ci_red" "$rebase" "$blocked_digest" "$blocked_for" \
+    local slot="$1" review="$2" comment="$3" conversation="$4" threads="$5" ci_red="$6" rebase="$7" blocked_digest="$8" blocked_for="$9" ci_retry_at="${10-}"
+    printf 'REV=%s\nCOM=%s\nCONV=%s\nTHREADS="%s"\nCIRED="%s"\nREBASED="%s"\nBLOCKED_CIDIGEST="%s"\nBLOCKED_FOR="%s"\nCI_RETRY_AT="%s"\n' \
+        "$review" "$comment" "$conversation" "$threads" "$ci_red" "$rebase" "$blocked_digest" "$blocked_for" "$ci_retry_at" \
         > "${slot}/${MUGGLE_PR_WATCH_REPORTED_FILE}"
 }
 

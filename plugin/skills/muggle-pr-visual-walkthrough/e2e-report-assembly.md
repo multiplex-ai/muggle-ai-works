@@ -37,6 +37,7 @@ For each result:
    - `summaryStep` absent → `{ isRecorded: false }`: the run died before summarizing, and the walkthrough says so on that test.
    - Omit `runSummary` only when no action script exists to read — a run that never started or the last-resort stub below.
 6. If the caller hands over a `baselineRunId` for a failed entry — a run of the same test case against the base that failed too — set it on the entry. `build-pr-section` credits it only after checking the run itself: same test case, failed, same runSettings record, and a stack or Studio build that served a base commit, from the PR's fork point through the base tip. A credited failure reads "also fails on base" and stops holding the walkthrough check red; a refused one is named on stderr and stays a plain failure. Pass `--base <branch>` when the PR does not target the remote's default branch.
+7. If the caller hands over a `repairHold` for a failed or inconclusive entry — a case its repair loop left unrepaired — set it unchanged: `{ kind, bucket, rootCause, reason, unblockedBy }`, `kind` one of `temporary-blocker`, `owner-decision`, `budget-spent`. The walkthrough lists it under **Not auto-repaired** with why and what unblocks it.
 
 ## Last-resort: no cloud refs on the run result
 

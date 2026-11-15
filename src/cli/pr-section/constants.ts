@@ -3,7 +3,7 @@
  * emitters hold only layout logic.
  */
 
-import { RunSummaryVerdictStatusEnum } from "./types.js";
+import { RepairHoldKindEnum, RunSummaryVerdictStatusEnum } from "./types.js";
 
 /** Width of the per-test ending screenshot, shown below the steps collapsible. */
 export const DETAIL_IMAGE_WIDTH = 720;
@@ -46,6 +46,19 @@ export const RUN_SUMMARY_VERDICT_STATUS_LABELS: Readonly<Record<RunSummaryVerdic
   [RunSummaryVerdictStatusEnum.Success]: "✅ Success",
   [RunSummaryVerdictStatusEnum.BugDetected]: "❌ Bug detected",
   [RunSummaryVerdictStatusEnum.GoalUnachievable]: "⚠️ Goal unachievable",
+};
+
+/** Heads the summary's list of failing cases the repair loop left unrepaired. */
+export const REPAIR_HOLD_HEADING = "**Not auto-repaired**";
+
+/** Leads each unrepaired case's line, so it reads as paused rather than as one more failure. */
+export const REPAIR_HOLD_MARKER = "⏸️";
+
+/** How the walkthrough names each reason the repair loop held a case back. */
+export const REPAIR_HOLD_KIND_LABELS: Readonly<Record<RepairHoldKindEnum, string>> = {
+  [RepairHoldKindEnum.TemporaryBlocker]: "temporary blocker",
+  [RepairHoldKindEnum.OwnerDecision]: "needs the owner's decision",
+  [RepairHoldKindEnum.BudgetSpent]: "repair budget spent",
 };
 
 /** Ends the step list of a run whose action script holds no summary step. */

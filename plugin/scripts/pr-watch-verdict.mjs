@@ -58,8 +58,19 @@ function isCiHeadEscalated(lastSeenEntry, headSha) {
 function isCiHeadBudgetSpent(lastSeenEntry, headSha) {
   return ciFixAttemptsFor(lastSeenEntry, headSha) >= MAX_CI_FIX_ATTEMPTS_PER_HEAD;
 }
-function isCiHeadSettled(lastSeenEntry, headSha) {
+function isCiHeadSettled(lastSeenEntry, headSha, nowEpochSeconds) {
+  if (isCiRepairWaitElapsed(lastSeenEntry, headSha, nowEpochSeconds)) return false;
   return isCiHeadEscalated(lastSeenEntry, headSha) || isCiHeadBudgetSpent(lastSeenEntry, headSha);
+}
+function ciRepairWaitRetryAt(lastSeenEntry, headSha) {
+  const repairWait = lastSeenEntry.ci_wait;
+  if (headSha === "" || repairWait?.head_sha !== headSha || typeof repairWait.retry_at !== "string") return void 0;
+  const retryAtMilliseconds = Date.parse(repairWait.retry_at);
+  return Number.isFinite(retryAtMilliseconds) ? Math.floor(retryAtMilliseconds / 1e3) : void 0;
+}
+function isCiRepairWaitElapsed(lastSeenEntry, headSha, nowEpochSeconds) {
+  const retryAt = ciRepairWaitRetryAt(lastSeenEntry, headSha);
+  return retryAt !== void 0 && nowEpochSeconds >= retryAt;
 }
 function isRebaseBudgetExhausted(lastSeenEntry, maxCatchUpRebases) {
   const catchUpRebases = lastSeenEntry.catch_up_rebases;
@@ -121,13 +132,15 @@ function resolveUnhandledFeedback(lastSeenEntry, observation) {
 }
 
 // src/pr-watch/armFloors.ts
-function resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey, maxCatchUpRebases, feedbackObservation) {
+function resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey, maxCatchUpRebases, feedbackObservation, nowEpochSeconds = Math.floor(Date.now() / 1e3)) {
   const blockedCiDigest = lastSeenEntry.blocked?.fingerprint?.ci_digest;
+  const ciRetryAt = ciRepairWaitRetryAt(lastSeenEntry, headSha);
   return {
     isRebaseKeyAttempted: rebaseKey !== "" && isRebaseKeyAttempted(lastSeenEntry, rebaseKey),
-    isCiHeadSettled: headSha !== "" && isCiHeadSettled(lastSeenEntry, headSha),
+    isCiHeadSettled: headSha !== "" && isCiHeadSettled(lastSeenEntry, headSha, nowEpochSeconds),
     isRebaseBudgetExhausted: isRebaseBudgetExhausted(lastSeenEntry, maxCatchUpRebases),
     blockedCiDigest: typeof blockedCiDigest === "string" && !LINE_BREAK.test(blockedCiDigest) ? blockedCiDigest : "",
+    ciRetryAt: ciRetryAt === void 0 ? "" : String(ciRetryAt),
     unhandledFeedback: resolveUnhandledFeedback(lastSeenEntry, feedbackObservation)
   };
 }
@@ -169,6 +182,7 @@ function resolveWatchTickVerdict(lastSeenEntry, observation, preferences) {
     if (isRebaseKeyBudgetLeft && !isRebaseKeyEscalated(lastSeenEntry, rebaseKey)) return "dispatch-rebase" /* DispatchRebase */;
   }
   if (observation.ciBucket === "red" /* Red */) {
+    if (isCiRepairWaitElapsed(lastSeenEntry, headSha, observation.nowEpochSeconds)) return "dispatch-fix-ci" /* DispatchFixCi */;
     const isCiHeadBudgetLeft = ciFixAttemptsFor(lastSeenEntry, headSha) < MAX_CI_FIX_ATTEMPTS_PER_HEAD;
     if (isCiHeadBudgetLeft && !isCiHeadEscalated(lastSeenEntry, headSha)) return "dispatch-fix-ci" /* DispatchFixCi */;
   }
@@ -199,7 +213,7 @@ ${PR_WATCH_VERDICT_USAGE}
 `,
   exitCode: USAGE_EXIT_CODE
 });
-function runPrWatchVerdictCommand(commandLine, lastSeenJson, resolvePreferences) {
+function runPrWatchVerdictCommand(commandLine, lastSeenJson, resolvePreferences, nowEpochSeconds = Math.floor(Date.now() / 1e3)) {
   const [subcommand, ...flagTokens] = commandLine;
   const flags = parseVerdictArguments(flagTokens);
   const prKey = flags[PR_KEY_FLAG];
@@ -212,12 +226,13 @@ function runPrWatchVerdictCommand(commandLine, lastSeenJson, resolvePreferences)
       bodyOnlyReviewIds: parseFeedbackIdList(flags[BODY_REVIEWS_FLAG] ?? ""),
       conversationCommentIds: parseFeedbackIdList(flags[CONVERSATION_COMMENTS_FLAG] ?? ""),
       unansweredThreadComments: parseUnansweredThreadComments(flags[UNANSWERED_THREADS_FLAG] ?? "")
-    });
+    }, nowEpochSeconds);
     const { unhandledFeedback } = evidence;
     return {
       stdout: `REBASE_ATTEMPTED=${evidence.isRebaseKeyAttempted ? 1 : 0}
 CI_SETTLED=${evidence.isCiHeadSettled ? 1 : 0}
 BLOCKED_CIDIGEST=${evidence.blockedCiDigest}
+CI_RETRY_AT=${evidence.ciRetryAt}
 REBASE_BUDGET_EXHAUSTED=${evidence.isRebaseBudgetExhausted ? 1 : 0}
 UNHANDLED_REVIEW_IDS=${unhandledFeedback.reviewIds.join(" ")}
 UNHANDLED_CONVERSATION_IDS=${unhandledFeedback.conversationCommentIds.join(" ")}
@@ -235,7 +250,7 @@ CONVERSATION_FLOOR_CEILING=${unhandledFeedback.conversationFloorCeiling ?? ""}
     if (!headSha || !rebaseKey) return usageFailure(`--${HEAD_FLAG} and --${REBASE_KEY_FLAG} are required`);
     const verdict = resolveWatchTickVerdict(
       lastSeenEntry,
-      { headSha, rebaseKey, isRebaseDue: flags[REBASE_DUE_FLAG] === REBASE_DUE_YES, ciBucket },
+      { headSha, rebaseKey, isRebaseDue: flags[REBASE_DUE_FLAG] === REBASE_DUE_YES, ciBucket, nowEpochSeconds },
       resolvePreferences()
     );
     return { stdout: `VERDICT=${verdict}

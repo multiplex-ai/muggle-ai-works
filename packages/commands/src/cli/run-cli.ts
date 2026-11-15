@@ -240,13 +240,10 @@ function createProgram (): Command {
     .option("--json", "Print the full report as JSON")
     .action(stackStatusCommand);
 
-  const local = program
-    .command("local")
-    .description("Run Muggle AI work in the local Studio on the model source you chose (muggle llm-source)");
-
-  local
+  program
     .command("scan")
-    .description("Scan a site for use-case candidates in the local Studio; reports candidates, never approves them")
+    .description("Scan a site for use-case candidates; reports candidates, never approves them")
+    .option("--local", "Run the scan in the local Studio on the model source you chose (muggle llm-source)")
     .requiredOption("--project-id <id>", "Cloud project the candidates belong to")
     .requiredOption("--url <siteUrl>", "Site URL the scan starts from")
     .option("--max-candidates <n>", "Stop once the scan has found this many candidates (default 30)")

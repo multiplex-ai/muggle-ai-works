@@ -127,7 +127,7 @@ export function getHelpGuidance(): string {
     `    ${cmd("muggle upgrade --check")}  Check updates without installing`,
     "",
     `  ${colorize("Local Runs:", COLORS.bold)}`,
-    `    ${cmd("muggle local scan")}       Scan a site for use-case candidates in the local Studio`,
+    `    ${cmd("muggle scan --local")}     Scan a site for use-case candidates in the local Studio`,
     "",
     `  ${colorize("Inspecting Runs:", COLORS.bold)}`,
     `    ${cmd("muggle run-view")}         Show a run's steps beside the frames they produced`,

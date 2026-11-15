@@ -1,5 +1,5 @@
 /**
- * `muggle local scan` CLI handler.
+ * `muggle scan --local` CLI handler.
  *
  * Runs a website scan (use-case discovery) in the local Studio on the model source the user chose, then
  * reports the candidates the scan added to the project's discovery memory. Candidates are reported, never
@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 import * as path from "node:path";
 
 import { e2e, getLogger, localQa } from "@muggleai/mcp";
-import { LOCAL_SCAN_COMMAND_LOG_LEVEL } from "./local-scan-constants.js";
+import { LOCAL_SCAN_COMMAND_LOG_LEVEL, SCAN_REQUIRES_LOCAL_FLAG_MESSAGE } from "./local-scan-constants.js";
 import { LocalScanStatusEnum } from "./local-scan-types.js";
 import type {
   IDiscoveryMemory,
@@ -117,13 +117,19 @@ function renderLocalScanText(report: ILocalScanReport): string {
 }
 
 /**
- * Run `muggle local scan` and print its report; with `--json`, one JSON line.
+ * Run `muggle scan --local` and print its report; with `--json`, one JSON line.
  *
- * Exits 0 whenever a report was printed, including an `error` report.
+ * Exits 0 whenever a report was printed, including an `error` report. Without `--local`
+ * it prints why and exits 1, since the CLI has no cloud scan.
  *
  * @param options - Parsed command options.
  */
 export async function localScanCommand(options: ILocalScanCommandOptions): Promise<void> {
+  if (!options.local) {
+    console.error(SCAN_REQUIRES_LOCAL_FLAG_MESSAGE);
+    process.exitCode = 1;
+    return;
+  }
   getLogger().level = LOCAL_SCAN_COMMAND_LOG_LEVEL;
   const report = await runLocalScanAsync(options);
   console.log(options.json ? JSON.stringify(report) : renderLocalScanText(report));

@@ -1,5 +1,7 @@
-/** Options accepted by `muggle local scan`, as Commander hands them over. */
+/** Options accepted by `muggle scan`, as Commander hands them over. */
 export interface ILocalScanCommandOptions {
+  /** Run the scan in the local Studio; the only mode the CLI offers. */
+  local?: boolean;
   /** Cloud project the candidates belong to. */
   projectId: string;
   /** Site URL the scan starts from. */
@@ -35,7 +37,7 @@ export interface ILocalScanCandidate {
 }
 
 /**
- * The one JSON line `muggle local scan --json` prints.
+ * The one JSON line `muggle scan --local --json` prints.
  *
  * Output shape:
  * `{"status":"capped","candidates":[{"title":"Search the catalog","description":"...","startUrl":"https://example.com","requiresSignIn":false}],"durationMs":412000,"error":null}`

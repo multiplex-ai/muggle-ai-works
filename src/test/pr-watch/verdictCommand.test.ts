@@ -44,7 +44,7 @@ describe("runPrWatchVerdictCommand", () => {
     );
     expect(outcome).toEqual({
       stdout:
-        "REBASE_ATTEMPTED=1\nCI_SETTLED=0\nBLOCKED_CIDIGEST=\nREBASE_BUDGET_EXHAUSTED=0\n" +
+        "REBASE_ATTEMPTED=1\nCI_SETTLED=0\nBLOCKED_CIDIGEST=\nCI_RETRY_AT=\nREBASE_BUDGET_EXHAUSTED=0\n" +
         "UNHANDLED_REVIEW_IDS=\nUNHANDLED_CONVERSATION_IDS=\nREVIEW_FLOOR_CEILING=\nCOMMENT_FLOOR_CEILING=\nCONVERSATION_FLOOR_CEILING=\n",
       stderr: "",
       exitCode: 0,
@@ -95,6 +95,26 @@ describe("runPrWatchVerdictCommand", () => {
     );
   });
 
+  it("re-dispatches fix-ci on an escalated head once its repair wait runs out, and hands arm-floors the retry time", () => {
+    const nowEpochSeconds = Date.parse("2026-11-16T09:00:00Z") / 1000;
+    const waiting = lastSeen({
+      ci_escalated_shas: ["h1"],
+      ci_fix_attempts: { h1: 1 },
+      ci_wait: { head_sha: "h1", reason: "Anthropic usage limit", retry_at: "2026-11-16T08:00:00Z" },
+    });
+    expect(runPrWatchVerdictCommand(tickArgs("no", "red"), waiting, preferences, nowEpochSeconds).stdout).toBe(
+      `VERDICT=${WatchTickVerdict.DispatchFixCi}\n`,
+    );
+    expect(
+      runPrWatchVerdictCommand(
+        ["arm-floors", "--pr-key", "o/r#7", "--head", "h1", "--rebase-key", "h1..b1"],
+        waiting,
+        preferences,
+        nowEpochSeconds,
+      ).stdout,
+    ).toContain(`CI_SETTLED=0\nBLOCKED_CIDIGEST=\nCI_RETRY_AT=${nowEpochSeconds - 3600}\n`);
+  });
+
   it("refuses a malformed invocation rather than guessing a verdict", () => {
     for (const commandLine of [
       ["tick", "--head", "h1"],
@@ -129,7 +149,7 @@ describe("the shipped pr-watch-verdict.mjs", () => {
       { input: "", encoding: "utf-8", windowsHide: true },
     );
     expect(run.stdout).toBe(
-      "REBASE_ATTEMPTED=0\nCI_SETTLED=0\nBLOCKED_CIDIGEST=\nREBASE_BUDGET_EXHAUSTED=0\n" +
+      "REBASE_ATTEMPTED=0\nCI_SETTLED=0\nBLOCKED_CIDIGEST=\nCI_RETRY_AT=\nREBASE_BUDGET_EXHAUSTED=0\n" +
         "UNHANDLED_REVIEW_IDS=\nUNHANDLED_CONVERSATION_IDS=\nREVIEW_FLOOR_CEILING=\nCOMMENT_FLOOR_CEILING=\nCONVERSATION_FLOOR_CEILING=\n",
     );
   });

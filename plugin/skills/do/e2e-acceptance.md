@@ -140,6 +140,8 @@ For each scoped test case, run the shared loop in [`../_shared/dev-loop/run.md`]
 
 Inputs to the loop: `mode` from the script-exists check, `localUrl`/project from Step 1.7, `cwd` = the working tree recorded in `state.md`.
 
+A re-run inside a repair cycle also posts the cycle's status when it starts and when it finishes, per [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md#cycle-progress).
+
 Each record's run is its own report entry carrying its `runSettingsId` and `resolutionLabel`. A record skipped because its primary failed is an Inconclusive entry with reason `primary failed`, not a skipped test case.
 
 ### Step 5: Run the deliverable checks

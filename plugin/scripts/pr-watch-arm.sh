@@ -123,6 +123,7 @@ last_seen_file="${slot}/last_seen.json"
 rebase_attempted=0
 ci_settled=0
 blocked_digest_floor=""
+ci_retry_at=""
 rebase_budget_exhausted=0
 unhandled_review_ids=""
 unhandled_conversation_ids=""
@@ -135,6 +136,7 @@ while IFS= read -r evidence_line; do
         REBASE_ATTEMPTED=*) rebase_attempted="${evidence_line#REBASE_ATTEMPTED=}" ;;
         CI_SETTLED=*) ci_settled="${evidence_line#CI_SETTLED=}" ;;
         BLOCKED_CIDIGEST=*) blocked_digest_floor="${evidence_line#BLOCKED_CIDIGEST=}" ;;
+        CI_RETRY_AT=*) ci_retry_at="${evidence_line#CI_RETRY_AT=}" ;;
         REBASE_BUDGET_EXHAUSTED=*) rebase_budget_exhausted="${evidence_line#REBASE_BUDGET_EXHAUSTED=}" ;;
         UNHANDLED_REVIEW_IDS=*) unhandled_review_ids="${evidence_line#UNHANDLED_REVIEW_IDS=}" ;;
         UNHANDLED_CONVERSATION_IDS=*) unhandled_conversation_ids="${evidence_line#UNHANDLED_CONVERSATION_IDS=}" ;;
@@ -237,6 +239,7 @@ conversation_floor="$(floor_capped_at "$conversation_floor" "$conversation_floor
     printf 'REBASED="%s"\n' "$rebase_floor"
     printf 'BLOCKED_CIDIGEST="%s"\n' "$blocked_digest_floor"
     printf 'REBASE_HELD="%s"\n' "$rebase_held"
+    printf 'CI_RETRY_AT="%s"\n' "$ci_retry_at"
 } > "${slot}/watch-watermark.env"
 
 # The loop fires only above both this watermark and watch-reported.env, so a
@@ -257,7 +260,8 @@ if [ -f "${slot}/${MUGGLE_PR_WATCH_REPORTED_FILE}" ] && [ -n "$has_unhandled_fee
         "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" CIRED)" \
         "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" REBASED)" \
         "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" BLOCKED_CIDIGEST)" \
-        "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" BLOCKED_FOR)"
+        "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" BLOCKED_FOR)" \
+        "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" CI_RETRY_AT)"
 fi
 
 # Unhandled feedback goes on the due record with the arm read's lists, so the

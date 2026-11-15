@@ -28,11 +28,15 @@ The watcher's one-line nudge to the loop owner, emitted every tick a PR sits blo
   ```
 - **`ci_escalated` with `last_seen.e2e_decision` on this head** — E2E cases the repair loop could not fix. Name every case with its bucket and failing step, then the four options; never the generic CI line, which hides the decision:
   ```
-  ⏳ acme/widget#142 awaiting you (2h): E2E on <short-sha> — Billing debit shows tokens (test-precondition, step 4), Checkout (infra, step 2) — reply: repair <direction> | feedback+rerun | waive | stop. → <pr-url>/checks
+  ⏳ acme/widget#142 awaiting you (2h): E2E on <short-sha> — Billing debit shows tokens (test-precondition, step 4), Checkout (agent-course, step 2) — reply: repair <direction> | feedback+rerun | waive | stop. → <pr-url>/checks
   ```
   Every case `waived: true` → the user already decided; say so instead of asking again:
   ```
   ⏳ acme/widget#142 awaiting you (2h): muggle-walkthrough stays red on <short-sha> only for cases you waived (Checkout) — merge past it, or re-run E2E. → <pr-url>/checks
+  ```
+- **`ci_escalated` with `last_seen.ci_wait` on this head** — the E2E repair waits on a temporary blocker and resumes on its own at `retry_at`. Say so; nothing is asked of the owner:
+  ```
+  ⏳ acme/widget#142 waiting (2h): E2E repair on <short-sha> paused on Anthropic usage limit — resumes automatically at 2026-11-16 09:00 UTC. → <pr-url>/checks
   ```
 
 The reminder repeats every blocked tick (at the normal `1m` cadence) until the owner acts; the watcher stops it the moment the fingerprint moves (a push, a new review, a CI/deploy change, or a new conversation comment).

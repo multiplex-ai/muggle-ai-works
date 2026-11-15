@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
-import { STEP_LIST_ELISION_THRESHOLD, TEST_DETAILS_ANCHOR_PREFIX } from "../../../cli/pr-section/constants.js";
+import { REPAIR_HOLD_HEADING, STEP_LIST_ELISION_THRESHOLD, TEST_DETAILS_ANCHOR_PREFIX } from "../../../cli/pr-section/constants.js";
 import { parseE2eResultMarker } from "../../../e2e-result/marker.js";
 import {
   computeVerdict,
@@ -14,7 +14,7 @@ import {
   resolveLatestRuns,
   type ILatestRun,
 } from "../../../cli/pr-section/render.js";
-import { E2eReportSchema, StepScreenshotDetailEnum, type E2eReport, type FailedTest, type InconclusiveTest, type PassedTest, type Step, type TestResult } from "../../../cli/pr-section/types.js";
+import { E2eReportSchema, RepairHoldKindEnum, StepScreenshotDetailEnum, type E2eReport, type FailedTest, type InconclusiveTest, type PassedTest, type Step, type TestResult } from "../../../cli/pr-section/types.js";
 
 const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const PROJECT_ID = "p1";
@@ -364,6 +364,51 @@ const passedRealSteps: PassedTest = {
   testCaseId: "tc-real",
   steps: realSteps,
 };
+
+// The #570 incident: an outage stopped the repair and the walkthrough only listed failures, so nobody reading the PR
+// learned why nothing was being fixed.
+describe("renderOverview: cases the repair loop left unrepaired", () => {
+  const outageHold = {
+    kind: RepairHoldKindEnum.TemporaryBlocker,
+    bucket: "infra",
+    rootCause: "every run was rejected by the Anthropic API usage limit",
+    reason: "Anthropic usage limit outside the repo",
+    unblockedBy: "limit resets 2026-11-16 09:00 UTC; repair resumes automatically",
+  };
+  const heldReport: E2eReport = {
+    projectId: PROJECT_ID,
+    tests: [
+      passedNoMeta,
+      { ...failedNoMeta, repairHold: outageHold },
+      { ...inconclusiveWithDesc, repairHold: { ...outageHold, kind: RepairHoldKindEnum.OwnerDecision, bucket: "agent-course" } },
+    ],
+  };
+
+  it("names each held case with its root cause, why it is not auto-fixed, and what unblocks it", () => {
+    const md = renderOverview(heldReport);
+    expect(md).toContain(REPAIR_HOLD_HEADING);
+    expect(md).toContain(
+      "- ⏸️ **Checkout breaks** — `infra`: every run was rejected by the Anthropic API usage limit · " +
+        "not auto-fixed (temporary blocker): Anthropic usage limit outside the repo · " +
+        "unblocks: limit resets 2026-11-16 09:00 UTC; repair resumes automatically",
+    );
+    expect(md).toContain("- ⏸️ **Clear search input restores full list** — `agent-course`:");
+    expect(md).toContain("not auto-fixed (needs the owner's decision)");
+  });
+
+  it("places the section in the summary, after the cases needing attention", () => {
+    const md = renderOverview(heldReport);
+    expect(md.indexOf(REPAIR_HOLD_HEADING)).toBeGreaterThan(md.indexOf("**Needs attention**"));
+  });
+
+  it("omits the section when no case carries a hold", () => {
+    expect(renderOverview(flatReport)).not.toContain(REPAIR_HOLD_HEADING);
+  });
+
+  it("parses a hold on failed and inconclusive cases", () => {
+    expect(E2eReportSchema.parse(heldReport).tests.filter((test) => test.status !== "passed" && test.repairHold)).toHaveLength(2);
+  });
+});
 
 describe("renderTestDetails", () => {
   it("titles the test with a heading that opens on the status glyph", () => {

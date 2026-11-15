@@ -67,7 +67,7 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh contract", () => {
   // separately, because performing them separately is how the watermark got
   // dropped and the watch became a silent no-op.
   it("seeds every watermark key the loop reads", () => {
-    ["REV=", "COM=", "CONV=", "THREADS=", "CIRED=", "REBASED=", "BLOCKED_CIDIGEST=", "REBASE_HELD="].forEach((key) => {
+    ["REV=", "COM=", "CONV=", "THREADS=", "CIRED=", "REBASED=", "BLOCKED_CIDIGEST=", "REBASE_HELD=", "CI_RETRY_AT="].forEach((key) => {
       expect(body).toContain(key);
     });
   });
@@ -924,6 +924,47 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh blocked-resume floor", () => {
     expect(watermarkLines).toContain(`BLOCKED_CIDIGEST="${hostileDigest}"`);
     expect(eventLines(stdout)).toEqual([]);
     expect(existsSync(marker)).toBe(false);
+  }, 60_000);
+});
+
+// A blocked head waiting out a provider outage, with the wait's retry time `retryAt`.
+function waitingEntry(retryAt: string): object {
+  return {
+    ...blockedEntry(blockedDigest),
+    ci_fix_attempts: { HEAD1: 1 },
+    ci_escalated_shas: ["HEAD1"],
+    ci_wait: { head_sha: "HEAD1", reason: "Anthropic usage limit", retry_at: retryAt },
+  };
+}
+
+// The #570 incident: an outage stopped the repair, the outage ended, and nothing on
+// the PR moved, so the block held until someone pushed.
+describe.skipIf(!hasBash)("pr-watch-arm.sh repair-wait retry", () => {
+  it("seeds the retry time and wakes once it has passed", () => {
+    const { watermarkLines, stdout } = armOverLastSeen(
+      JSON.stringify({ "o/n#1": waitingEntry("2020-01-01T00:00:00Z") }),
+      blockedDigest,
+      true,
+    );
+    expect(watermarkLines).toContain(`CI_RETRY_AT="${Date.parse("2020-01-01T00:00:00Z") / 1000}"`);
+    const events = eventLines(stdout);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toContain("repair wait elapsed");
+  }, 60_000);
+
+  it("stays quiet while the wait is still running", () => {
+    const { watermarkLines, stdout } = armOverLastSeen(
+      JSON.stringify({ "o/n#1": waitingEntry("2999-01-01T00:00:00Z") }),
+      blockedDigest,
+      true,
+    );
+    expect(watermarkLines).toContain(`CI_RETRY_AT="${Date.parse("2999-01-01T00:00:00Z") / 1000}"`);
+    expect(eventLines(stdout)).toEqual([]);
+  }, 60_000);
+
+  it("leaves the retry time empty when no wait names the head", () => {
+    expect(armOverLastSeen(JSON.stringify({ "o/n#1": blockedEntry(blockedDigest) }), blockedDigest, false).watermarkLines)
+      .toContain('CI_RETRY_AT=""');
   }, 60_000);
 });
 

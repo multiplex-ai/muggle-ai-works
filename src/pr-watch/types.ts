@@ -17,8 +17,23 @@ export interface LastSeenPrEntry {
   escalated_review_ids?: number[];
   escalated_conversation_comment_ids?: number[];
   blocked?: { fingerprint?: { ci_digest?: unknown } };
+  /** A red head fix-ci left unrepaired on a temporary blocker, and when its repair is due again. */
+  ci_wait?: CiRepairWait;
   /** Set from forward Stage 5.5 until the Stage 8 handoff: the PR is watched, but every cycle waits for that handoff. */
   forward_stages_in_flight?: boolean;
+}
+
+/**
+ * A temporary blocker outside the repo — a provider outage or usage limit — that stopped fix-ci repairing a red head.
+ * Fix-ci writes it; the watch dispatches fix-ci again once `retry_at` passes, whatever the head's escalation says.
+ *
+ * Output shape: `{ head_sha: "9f3c…", reason: "Anthropic usage limit", retry_at: "2026-11-16T09:00:00Z" }`.
+ */
+export interface CiRepairWait {
+  head_sha?: unknown;
+  reason?: unknown;
+  /** ISO-8601 instant the blocker is expected to clear. */
+  retry_at?: unknown;
 }
 
 /** The single PR a slot's `prs.json` tracks, narrowed to the fields the watch reads. */
@@ -56,6 +71,8 @@ export interface WatchTickObservation {
   rebaseKey: string;
   isRebaseDue: boolean;
   ciBucket: CiRollupBucket;
+  /** The tick's clock, in epoch seconds, that a repair wait is judged against. */
+  nowEpochSeconds: number;
 }
 
 /** The muggle preferences the watch acts on, resolved against the shipped defaults. */
@@ -77,6 +94,8 @@ export interface ArmFloorEvidence {
   isRebaseBudgetExhausted: boolean;
   /** The blocked fingerprint's CI digest, empty when the PR is not blocked or the digest could forge a watermark line. */
   blockedCiDigest: string;
+  /** Epoch seconds at which a repair wait on the head ends, empty when no wait names it. */
+  ciRetryAt: string;
   /** Review feedback outstanding at arm time that nothing recorded as handled. */
   unhandledFeedback: UnhandledFeedback;
 }

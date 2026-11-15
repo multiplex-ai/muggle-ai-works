@@ -24,6 +24,10 @@ const FAILURE_MODE_HANDLING = read("_shared", "failure-mode-handling.md");
 const FIX_CI = read("do", "fix-ci.md");
 const E2E_REPAIR = read("do", "e2e-repair.md");
 const BLOCKED_REMINDER = read("muggle-pr-followup", "output-templates", "blocked-reminder.md");
+const BLOCKED_TICK = read("muggle-pr-followup", "blocked-tick.md");
+const REPORT_ASSEMBLY = read("muggle-pr-visual-walkthrough", "e2e-report-assembly.md");
+const WALKTHROUGH_SKILL = read("muggle-pr-visual-walkthrough", "SKILL.md");
+const WALKTHROUGH_BUILDER = fs.readFileSync(path.resolve(SKILLS_DIR, "../agents/visual-walkthrough-builder.md"), "utf8");
 const STATE_SCHEMAS = read("muggle-pr-followup", "state-schemas.md");
 
 const walkthroughStep = sectionBody(FIX_CI, /^### Step 2\.5 — Red E2E walkthrough check.*$/m);
@@ -31,6 +35,7 @@ const escalateStep = sectionBody(FIX_CI, /^### Step 6 — Escalate.*$/m);
 const dispositionStep = sectionBody(E2E_REPAIR, /^## Step 2: Disposition.*$/m);
 const decisionStep = sectionBody(E2E_REPAIR, /^## Step 4: The user decision.*$/m);
 const closeLoopStep = sectionBody(E2E_REPAIR, /^## Step 5: Close the loop.*$/m);
+const unrepairedCases = sectionBody(E2E_REPAIR, /^## Unrepaired cases.*$/m);
 const walkthroughRow = CI_CHECK_TO_COMMAND.split("\n").find((line) => line.startsWith("| `muggle-walkthrough`")) ?? "";
 
 describe("red walkthrough routing", () => {
@@ -82,6 +87,57 @@ describe("unrepairable walkthrough cases", () => {
     expect(decisionStep).toMatch(/open decision\*\*, never a waiver/);
     expect(closeLoopStep).not.toMatch(/waive automatically/);
     expect(E2E_REPAIR).toMatch(/`decision-pending`/);
+  });
+});
+
+// The #570 incident: an outage stopped the repair, the reason lived only in the session's state.md, the walkthrough
+// still just listed failures, and nothing re-attempted the repair once the outage ended.
+describe("walkthrough cases left unrepaired", () => {
+  it("allows only three reasons not to repair", () => {
+    expect(unrepairedCases).toMatch(/repaired by default/);
+    for (const kind of ["temporary-blocker", "owner-decision", "budget-spent"]) {
+      expect(unrepairedCases).toContain(`\`${kind}\``);
+    }
+    expect(unrepairedCases).toMatch(/Anything else is not a reason: repair the case/);
+  });
+
+  it("states why on the PR's walkthrough, never only in session state", () => {
+    expect(unrepairedCases).toMatch(/`repairHold`/);
+    expect(unrepairedCases).toMatch(/A `state\.md` entry or a session message is not enough/);
+    expect(escalateStep).toMatch(/\*\*Settle the walkthrough\*\*/);
+    expect(REPORT_ASSEMBLY).toMatch(/`repairHold`/);
+  });
+
+  it("waits out a temporary blocker and retries without a prompt", () => {
+    expect(dispositionStep).toMatch(/\| `infra` \(either\) \| `wait` \|/);
+    expect(dispositionStep).toMatch(/takes `wait` like `infra`, whatever its bucket/);
+    expect(unrepairedCases).toMatch(/never becomes a decision request/);
+    expect(unrepairedCases).toMatch(/last_seen\.ci_wait/);
+    expect(escalateStep).toMatch(/write `last_seen\.ci_wait`/);
+    expect(FIX_CI).toMatch(/\*\*A due repair wait\.\*\*/);
+    expect(STATE_SCHEMAS).toMatch(/`ci_wait`:/);
+    expect(STATE_SCHEMAS).toMatch(/`CI_RETRY_AT`/);
+    expect(BLOCKED_TICK).toMatch(/treat the tick as \*\*Changed\*\* whatever the fingerprint says/);
+    expect(BLOCKED_REMINDER).toMatch(/`ci_escalated` with `last_seen\.ci_wait` on this head/);
+  });
+});
+
+// #570 showed a stale 0/6 for hours while repair commits were pushed and a rerun was pending.
+describe("cycle progress on the walkthrough", () => {
+  const cycleProgress = sectionBody(WALKTHROUGH_SKILL, /^## Cycle progress.*$/m);
+
+  it("posts each job's status in the background, editing the existing comment", () => {
+    expect(cycleProgress).toMatch(/\*\*in the background\*\*/);
+    expect(cycleProgress).toMatch(/never posts a new one/);
+    expect(cycleProgress).toMatch(/The cycle never waits on it/);
+    expect(WALKTHROUGH_BUILDER).toMatch(/\*\*Mode D \(`status`\)\*\*/);
+    expect(WALKTHROUGH_BUILDER).toMatch(/<!-- muggle-pr-walkthrough-cycle -->/);
+  });
+
+  it("is referenced from the repair cycle, not restated", () => {
+    for (const caller of [FIX_CI, E2E_REPAIR]) {
+      expect(caller).toMatch(/SKILL\.md#cycle-progress/);
+    }
   });
 });
 

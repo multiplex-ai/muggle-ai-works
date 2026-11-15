@@ -35,11 +35,13 @@ Every subsequent tick while `last_seen.blocked` is present: recompute the finger
 - **Unchanged** → still blocked. Stay **silent** — the reminder went out when the block was flagged. Increment `last_seen.idle_tick_count`, append a `blocked reason=<reason>` line to `followup.log`, emit a `tick` event with `idle: true`, `blocked: true`. Exit.
 `reason: "rebase_budget_exhausted"` is the one exception to the gate: treat it as **Unchanged** whatever the fingerprint says. The budget was spent by the base advancing, so resuming on a fingerprint move would hand the PR straight back into the unbounded rebase loop the cap exists to end. It clears only when the owner raises [`maxCatchUpRebases`](../muggle-preferences/preference-gates/maxCatchUpRebases.md) or the PR goes terminal.
 
+A `ci_escalated` block whose head carries a `last_seen.ci_wait` ([`state-schemas.md`](state-schemas.md#last_seenjson)) waits on a temporary blocker, not on the owner: once its `retry_at` has passed, treat the tick as **Changed** whatever the fingerprint says. The loop's retry wake brings that tick on time, and the verdict then dispatches the repair.
+
 - **Changed** → clear `last_seen.blocked`, clear the watch-watermark's `BLOCKED_CIDIGEST` to empty (whole-file rewrite — disarms the loop's blocked-resume probe now that the watch is unblocked), and **fall through to [`contract.md`](contract.md) Step 3** to re-evaluate against the moved state this same tick: a dispatch hands the PR to the cycle (its exit settles the watch); a transient idle changes nothing; idling back into a block re-flags per Step 7 — a new block, which sends its own single reminder (and re-arms `BLOCKED_CIDIGEST` afresh).
 
 ## Invariants
 
 - One reminder per block — sent when flagged, never repeated while the same block holds. A re-flag after a resume is a new block and sends its own single reminder.
 - The watch never stops — a blocked PR stays visibly watched at the normal `1m` cadence; only a terminal PR or an explicit teardown ends it.
-- The block clears the instant any fingerprint component moves, caught at the next wake or tick — except `rebase_budget_exhausted`, which only the owner clears.
+- The block clears the instant any fingerprint component moves, caught at the next wake or tick — except `rebase_budget_exhausted`, which only the owner clears. A repair wait clears it on its own when its `retry_at` passes.
 - The blocked path never posts to the PR.

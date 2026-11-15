@@ -50,6 +50,26 @@ const MissingRunSummarySchema = z.object({
 
 const RunSummarySchema = z.discriminatedUnion("isRecorded", [RecordedRunSummarySchema, MissingRunSummarySchema]);
 
+/** Why the unattended E2E repair loop left a failing case unrepaired. */
+export enum RepairHoldKindEnum {
+  /** An outage or usage limit outside the repo stopped the repair; it resumes on its own once the blocker clears. */
+  TemporaryBlocker = "temporary-blocker",
+  /** A design or product call only the PR's owner can make. */
+  OwnerDecision = "owner-decision",
+  /** The head spent its repair budget without a fix. */
+  BudgetSpent = "budget-spent",
+}
+
+// A failing case the repair loop did not fix: its root cause and bucket, why it is not being fixed automatically
+// now, and what unblocks it. The walkthrough states it on the PR, so the reason never lives only in session state.
+const RepairHoldSchema = z.object({
+  kind: z.nativeEnum(RepairHoldKindEnum),
+  bucket: z.string().min(1),
+  rootCause: z.string().min(1),
+  reason: z.string().min(1),
+  unblockedBy: z.string().min(1),
+});
+
 // The project short IDs of the test case (TC-42) and of the run (R-2051); optional because entities created
 // before short IDs existed carry none.
 const TEST_SHORT_ID_FIELDS = {
@@ -96,6 +116,7 @@ const FailedTestSchema = z.object({
   // A run of the same test case on the PR's base the author says failed too; build-pr-section verifies it before
   // the walkthrough credits it.
   baselineRunId: z.string().min(1).optional(),
+  repairHold: RepairHoldSchema.optional(),
   artifactsDir: z.string().min(1).optional(),
   useCaseName: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
@@ -121,6 +142,7 @@ const InconclusiveTestSchema = z.object({
   status: z.literal("inconclusive"),
   steps: z.array(StepSchema),
   reason: z.string().min(1),
+  repairHold: RepairHoldSchema.optional(),
   artifactsDir: z.string().min(1).optional(),
   useCaseName: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
@@ -152,6 +174,8 @@ export type E2eReport = Omit<z.infer<typeof E2eReportSchema>, "tests"> & { tests
 export type Step = z.infer<typeof StepSchema>;
 /** The run's closing halt step, or the record that the run never summarized. */
 export type RunSummary = z.infer<typeof RunSummarySchema>;
+/** A failing case the repair loop left unrepaired, with why and what unblocks it. */
+export type RepairHold = z.infer<typeof RepairHoldSchema>;
 /** A halt step the run recorded. */
 export type RecordedRunSummary = z.infer<typeof RecordedRunSummarySchema>;
 

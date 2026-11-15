@@ -162,3 +162,15 @@ watch_wake_blocked_resume() {
     [ "$digest" != "$blocked_digest" ] || return 1
     echo "EVENT pr=$pr ci digest moved while blocked — resume check"
 }
+
+# A red head's repair wait on a temporary blocker — an outage or usage limit —
+# running out. Nothing on the PR moves when a provider recovers, so without this
+# the block holds until someone pushes. It fires once per retry time: the next
+# wait a failed retry records carries a later one.
+watch_wake_ci_retry_due() {
+    local pr="$1" now="$2" retry_at="$3" floor="$4"
+    [ -n "$retry_at" ] || return 1
+    [ "$retry_at" != "$floor" ] || return 1
+    [ "$now" -ge "$retry_at" ] 2>/dev/null || return 1
+    echo "EVENT pr=$pr repair wait elapsed — retry the E2E repair"
+}

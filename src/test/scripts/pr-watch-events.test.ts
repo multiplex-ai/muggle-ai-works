@@ -301,6 +301,25 @@ describe.skipIf(!hasBash)("watch_wake_blocked_resume", () => {
   });
 });
 
+describe.skipIf(!hasBash)("watch_wake_ci_retry_due", () => {
+  it("is dormant when no repair wait is recorded", () => {
+    expect(wake('watch_wake_ci_retry_due 570 1763283600 "" ""')).toBe("");
+  });
+
+  it("stays quiet until the retry time", () => {
+    expect(wake('watch_wake_ci_retry_due 570 1763283599 1763283600 ""')).toBe("");
+  });
+
+  // The #570 incident: the outage ended and nothing on the PR moved, so nothing retried the repair.
+  it("wakes once the retry time passes", () => {
+    expect(wake('watch_wake_ci_retry_due 570 1763283600 1763283600 ""')).toContain("repair wait elapsed");
+  });
+
+  it("does not repeat a retry time already reported", () => {
+    expect(wake('watch_wake_ci_retry_due 570 1763290000 1763283600 1763283600')).toBe("");
+  });
+});
+
 /** Loads a state line through watch_read_state_fields and returns the array it filled. */
 function readStateFields(line: string): string[] {
   const stdout = execFileSync(

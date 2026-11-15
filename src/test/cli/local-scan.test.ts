@@ -20,7 +20,8 @@ vi.mock("../../../packages/mcps/src/index.js", () => ({
   getLogger: () => sharedLogger,
 }));
 
-import { runLocalScanAsync } from "../../cli/local/local-scan.js";
+import { localScanCommand, runLocalScanAsync } from "../../cli/local/local-scan.js";
+import { SCAN_REQUIRES_LOCAL_FLAG_MESSAGE } from "../../cli/local/local-scan-constants.js";
 import { LocalScanStatusEnum } from "../../cli/local/local-scan-types.js";
 import { isSignedInFlow, parseLocalScanLimits } from "../../cli/local/website-scan-candidates.js";
 
@@ -125,6 +126,40 @@ describe("runLocalScanAsync", () => {
     expect(executeWebsiteScan).not.toHaveBeenCalled();
     expect(report).toMatchObject({ status: LocalScanStatusEnum.Error, candidates: [] });
     expect(report.error).toContain("Not authenticated");
+  });
+});
+
+describe("localScanCommand", () => {
+  beforeEach(() => {
+    executeQaTool.mockReset();
+    executeWebsiteScan.mockReset();
+    process.exitCode = undefined;
+  });
+
+  it("refuses to scan without --local and exits 1", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await localScanCommand({ projectId: "p-1", url: SITE_URL, json: true });
+
+    expect(errorSpy).toHaveBeenCalledWith(SCAN_REQUIRES_LOCAL_FLAG_MESSAGE);
+    expect(process.exitCode).toBe(1);
+    expect(executeQaTool).not.toHaveBeenCalled();
+    expect(executeWebsiteScan).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+    process.exitCode = undefined;
+  });
+
+  it("scans and prints one JSON line with --local", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    executeQaTool.mockResolvedValue(memoryResult(null));
+    executeWebsiteScan.mockResolvedValue({ exit: "completed", useCaseDiscoverMemoryId: "memory-1" });
+
+    await localScanCommand({ projectId: "p-1", url: SITE_URL, local: true, json: true });
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(logSpy.mock.calls[0][0]))).toHaveProperty("status");
+    expect(process.exitCode).toBeUndefined();
+    logSpy.mockRestore();
   });
 });
 

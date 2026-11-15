@@ -12,9 +12,9 @@ You render and (in Mode A) post the Muggle Test E2E visual walkthrough. The disp
 
 The dispatch prompt carries:
 
-- `mode` — `post` (Mode A), `render-for-new-pr` (Mode B), or `embed` (Mode C).
-- `prNumber` + repo — Mode A only, already verified to exist.
-- The `E2eReport` JSON inline, **or** the run identifiers (`projectId`, per-test `runId`/`testCaseId` list) to assemble it from.
+- `mode` — `post` (Mode A), `render-for-new-pr` (Mode B), `embed` (Mode C), or `status` (Mode D).
+- `prNumber` + repo — Modes A and D, already verified to exist.
+- The `E2eReport` JSON inline, **or** the run identifiers (`projectId`, per-test `runId`/`testCaseId` list) to assemble it from. Mode D takes the cycle status instead — `headSha`, `changes`, `running`, `lastVerdict` — and skips Render.
 
 When assembling from identifiers, follow [`../skills/muggle-pr-visual-walkthrough/e2e-report-assembly.md`](../skills/muggle-pr-visual-walkthrough/e2e-report-assembly.md). The `E2eReport` schema, required fields, and the inconclusive rule live there and in the CLI's Zod schema (`src/cli/pr-section/types.ts`) — a run that couldn't produce pass/fail is `inconclusive` with a `reason`, never dropped.
 
@@ -50,6 +50,18 @@ While a run is in flight, the comment carries a "new E2E run in progress" banner
 
 Report back: PR URL, whether an overflow comment was involved, and whether this was a fresh post or an update.
 
+**Mode D (`status`)** — find the walkthrough comment exactly as Mode A does; none → stop, posting nothing. Otherwise put this block at the top of its body, replacing any earlier one, and PATCH it back, the rest of the body untouched:
+
+```
+<!-- muggle-pr-walkthrough-cycle -->
+> **E2E cycle in progress** on `<headSha, 7 chars>` — <running, or "waiting for the next job">
+> - `<sha, 7 chars>` <subject>   ← one line per change; omitted when none
+> Last verdict: <lastVerdict>
+<!-- /muggle-pr-walkthrough-cycle -->
+```
+
+That block is the one piece of the comment this agent writes itself. Never sign it again or touch the CLI's markdown below it; the next Mode A settle replaces the whole body, block included. Report back one line: updated, or no comment found.
+
 **Modes B/C (`render-for-new-pr` / `embed`)** — do not post, do not touch `gh`. Return the CLI output verbatim as your report:
 
 ```
@@ -61,7 +73,7 @@ comment:
 
 ## Guardrails
 
-- Never hand-write or modify the walkthrough markdown — the CLI is the single source of truth. No custom tables, no added "Verdict" lines, no `Tested on:`/`Project:` footers; the CLI computes the verdict and emits per-test dashboard links.
+- Never hand-write or modify the walkthrough markdown — the CLI is the single source of truth. Mode D's status block is the one exception, and it sits above the CLI's markdown, never inside it. No custom tables, no added "Verdict" lines, no `Tested on:`/`Project:` footers; the CLI computes the verdict and emits per-test dashboard links.
 - Never invent report fields — missing `projectId`, `viewUrl`, or `screenshotUrl` → `needs-input:`, never a placeholder.
 - Never post the overflow comment when `comment` is null.
 - Never create a PR, never choose a mode — both belong to the dispatcher.

@@ -53,8 +53,26 @@ export function isCiHeadBudgetSpent(lastSeenEntry: LastSeenPrEntry, headSha: str
  * Whether fix-ci is finished with the head: it escalated, or spent its budget. Only then is the head's red no longer
  * news. A lone attempt is not: the count is written before the fix, so it proves a cycle started, not that it settled.
  */
-export function isCiHeadSettled(lastSeenEntry: LastSeenPrEntry, headSha: string): boolean {
+export function isCiHeadSettled(lastSeenEntry: LastSeenPrEntry, headSha: string, nowEpochSeconds: number): boolean {
+  if (isCiRepairWaitElapsed(lastSeenEntry, headSha, nowEpochSeconds)) return false;
   return isCiHeadEscalated(lastSeenEntry, headSha) || isCiHeadBudgetSpent(lastSeenEntry, headSha);
+}
+
+/** Epoch seconds at which the repair wait on the head ends; undefined when no wait names the head or its time is unreadable. */
+export function ciRepairWaitRetryAt(lastSeenEntry: LastSeenPrEntry, headSha: string): number | undefined {
+  const repairWait = lastSeenEntry.ci_wait;
+  if (headSha === "" || repairWait?.head_sha !== headSha || typeof repairWait.retry_at !== "string") return undefined;
+  const retryAtMilliseconds = Date.parse(repairWait.retry_at);
+  return Number.isFinite(retryAtMilliseconds) ? Math.floor(retryAtMilliseconds / 1000) : undefined;
+}
+
+/**
+ * Whether the head's repair wait has run out. A temporary blocker is a wait, not a stop: once it is due, the head's
+ * escalation and spent budget no longer hold, because neither recorded a repair the blocker let run.
+ */
+export function isCiRepairWaitElapsed(lastSeenEntry: LastSeenPrEntry, headSha: string, nowEpochSeconds: number): boolean {
+  const retryAt = ciRepairWaitRetryAt(lastSeenEntry, headSha);
+  return retryAt !== undefined && nowEpochSeconds >= retryAt;
 }
 
 /**

@@ -7,11 +7,12 @@ name: Codex Skill Evals
 # runs it; the agent eval, whether each pinned agent still keeps its report and
 # no-user contract when Codex runs it.
 #
-# Not a required check: Codex runs on OpenAI's models, billed to the
-# OPENAI_API_KEY repo secret, and without that secret each job says so and
-# passes. Scoped like skill-eval.yml: on a PR a job runs only when the change can
-# move its result, the `run-full-eval` label forces the full sweep, and the
-# nightly and on-demand runs are always full.
+# Not a required check: Codex runs on OpenAI's models, on the OPENAI_API_KEY
+# repo secret (billed per use) or, failing that, the CODEX_AUTH_JSON secret (a
+# `codex login` auth.json, on a ChatGPT subscription); with neither, each job
+# says so and passes. Scoped like skill-eval.yml: on a PR a job runs only when
+# the change can move its result, the `run-full-eval` label forces the full
+# sweep, and the nightly and on-demand runs are always full.
 on:
   pull_request:
     branches: [master]
@@ -125,18 +126,17 @@ jobs:
 
       # A missing key skips the eval rather than failing it, loudly: forks and
       # Dependabot get no secrets, and the eval is opt-in until one is set.
-      - name: Check for an OpenAI key
+      - name: Resolve Codex auth
         id: auth
         if: steps.scope.outputs.should_run == 'true'
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          if [ -n "$OPENAI_API_KEY" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Codex routing eval skipped::Set the OPENAI_API_KEY repo secret to run the skill-routing eval under Codex."
-          fi
+        uses: ./.github/actions/resolve-codex-auth
+        with:
+          api-key: ${{ secrets.OPENAI_API_KEY }}
+          subscription-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
+
+      - name: Skip when no Codex credential is set
+        if: steps.scope.outputs.should_run == 'true' && steps.auth.outputs.ready != 'true'
+        run: echo "::notice title=Codex routing eval skipped::Set the OPENAI_API_KEY or CODEX_AUTH_JSON repo secret to run the skill-routing eval under Codex."
 
       - name: Setup Node.js
         if: steps.auth.outputs.ready == 'true'
@@ -164,6 +164,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$CODEX_HOME" "$CLEAN_CWD"
+          bash .github/actions/resolve-codex-auth/seed-home.sh "$CODEX_HOME"
           python internal/skill-routing-eval/codex_session.py prepare --codex-home "$CODEX_HOME"
           codex plugin list
           codex plugin list | grep -Eq 'muggle@muggle-works +installed, enabled' \
@@ -203,8 +204,6 @@ jobs:
       - name: Preflight — confirm the plugin actually routes
         id: preflight
         if: steps.auth.outputs.ready == 'true'
-        env:
-          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           set -euo pipefail
           # As in skill-routing-eval: up to PREFLIGHT_ATTEMPTS probes, passing on
@@ -240,8 +239,6 @@ jobs:
       # is what fails a Codex that does not route at all.
       - name: Run routing eval
         if: steps.auth.outputs.ready == 'true'
-        env:
-          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           set -euo pipefail
           gate=()
@@ -344,22 +341,33 @@ jobs:
             echo "No change Codex's gate runs can see — Codex gate eval not required."
           fi
 
-      - name: Check for an OpenAI key and the scenario repo token
+      - name: Resolve Codex auth
         id: auth
         if: steps.scope.outputs.should_run == 'true'
+        uses: ./.github/actions/resolve-codex-auth
+        with:
+          api-key: ${{ secrets.OPENAI_API_KEY }}
+          subscription-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
+
+      - name: Skip when no Codex credential is set
+        if: steps.scope.outputs.should_run == 'true' && steps.auth.outputs.ready != 'true'
+        run: echo "::notice title=Codex gate eval skipped::Set the OPENAI_API_KEY or CODEX_AUTH_JSON repo secret to run the skill-gate eval under Codex."
+
+      - name: Check for the scenario repo token
+        id: brain
+        if: steps.auth.outputs.ready == 'true'
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           BRAIN_REPO_TOKEN: ${{ secrets.BRAIN_REPO_TOKEN }}
         run: |
-          if [ -n "$OPENAI_API_KEY" ] && [ -n "$BRAIN_REPO_TOKEN" ]; then
+          if [ -n "$BRAIN_REPO_TOKEN" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Codex gate eval skipped::Set the OPENAI_API_KEY repo secret (and BRAIN_REPO_TOKEN, which skill-gate-eval already uses) to run the gate eval under Codex."
+            echo "::notice title=Codex gate eval skipped::Set BRAIN_REPO_TOKEN, which skill-gate-eval already uses, to run the gate eval under Codex."
           fi
 
       - name: Checkout scenario data (muggle-ai-brain)
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         uses: actions/checkout@v6
         with:
           repository: multiplex-ai/muggle-ai-brain
@@ -367,29 +375,27 @@ jobs:
           path: muggle-ai-brain
 
       - name: Setup Node.js
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: "22"
 
       - name: Setup pnpm
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         uses: pnpm/action-setup@v6
 
       - name: Install dependencies
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Install Codex CLI
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: |
           npm install -g "@openai/codex@${CODEX_CLI_VERSION}"
           codex --version
 
       - name: Run skill-gate evals under Codex (every gate in the scenario repo)
-        if: steps.auth.outputs.ready == 'true'
-        env:
-          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        if: steps.brain.outputs.ready == 'true'
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -400,6 +406,7 @@ jobs:
             gate="$(basename "$(dirname "$scenarios")")"
             skill="$(node -e "process.stdout.write(require(process.argv[1]).skill)" "$scenarios")"
             echo "::group::gate=$gate skill=$skill runs=$GATE_RUNS"
+            bash .github/actions/resolve-codex-auth/seed-home.sh "$CODEX_GATE_HOMES/$gate"
             if pnpm exec tsx internal/skill-gate-eval/src/run.ts --host codex \
                  --gate "$gate" --skill "$skill" --runs "$GATE_RUNS" \
                  --concurrency "$GATE_CONCURRENCY" \
@@ -478,18 +485,17 @@ jobs:
             echo "No agent-relevant changes — Codex agent-gate eval not required."
           fi
 
-      - name: Check for an OpenAI key
+      - name: Resolve Codex auth
         id: auth
         if: steps.scope.outputs.should_run == 'true'
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          if [ -n "$OPENAI_API_KEY" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Codex agent-gate eval skipped::Set the OPENAI_API_KEY repo secret to run the agent-gate eval under Codex."
-          fi
+        uses: ./.github/actions/resolve-codex-auth
+        with:
+          api-key: ${{ secrets.OPENAI_API_KEY }}
+          subscription-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
+
+      - name: Skip when no Codex credential is set
+        if: steps.scope.outputs.should_run == 'true' && steps.auth.outputs.ready != 'true'
+        run: echo "::notice title=Codex agent-gate eval skipped::Set the OPENAI_API_KEY or CODEX_AUTH_JSON repo secret to run the agent-gate eval under Codex."
 
       - name: Setup Node.js
         if: steps.auth.outputs.ready == 'true'
@@ -520,6 +526,7 @@ jobs:
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           mkdir -p "$CODEX_AGENT_HOME"
+          bash .github/actions/resolve-codex-auth/seed-home.sh "$CODEX_AGENT_HOME"
           if CODEX_HOME="$CODEX_AGENT_HOME" codex sandbox -- true; then
             echo "Codex reads run read-only."
           else
@@ -529,8 +536,6 @@ jobs:
 
       - name: Run agent-gate evals under Codex (every scenario file)
         if: steps.auth.outputs.ready == 'true'
-        env:
-          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           set -euo pipefail
           shopt -s nullglob

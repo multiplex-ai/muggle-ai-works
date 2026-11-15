@@ -108,6 +108,7 @@ floor_ci_red=$(read_reported CIRED)
 floor_rebase=$(read_reported REBASED)
 floor_blocked_digest=$(read_reported BLOCKED_CIDIGEST)
 floor_blocked_for=$(read_reported BLOCKED_FOR)
+floor_ci_retry_at=$(read_reported CI_RETRY_AT)
 
 read_watermark() {
     watch_read_slot_value "$slot" watch-watermark.env "$1"
@@ -168,6 +169,7 @@ while :; do
     watermark_rebase=$(read_watermark REBASED)
     watermark_blocked_digest=$(read_watermark BLOCKED_CIDIGEST)
     watermark_rebase_held=$(read_watermark REBASE_HELD)
+    watermark_ci_retry_at=$(read_watermark CI_RETRY_AT)
 
     state_line=$(watch_fetch_state "$repo" "$pr_number" "$slot" "$state_projection")
     # One quick retry before counting a strike: a single flaky call should not
@@ -285,11 +287,16 @@ while :; do
         has_reported=1
     fi
 
+    if watch_wake_ci_retry_due "$pr_number" "$(date +%s)" "$watermark_ci_retry_at" "$floor_ci_retry_at"; then
+        floor_ci_retry_at="$watermark_ci_retry_at"
+        has_reported=1
+    fi
+
     if [ -n "$has_reported" ]; then
         watch_record_reported "$slot" "$(higher_id "$latest_review" "$reported_review")" \
             "$(higher_id "$latest_comment" "$reported_comment")" \
             "$(higher_id "$latest_conversation" "$reported_conversation")" "$unresolved_threads" \
-            "$floor_ci_red" "$floor_rebase" "$floor_blocked_digest" "$floor_blocked_for"
+            "$floor_ci_red" "$floor_rebase" "$floor_blocked_digest" "$floor_blocked_for" "$floor_ci_retry_at"
         exit 0
     fi
 

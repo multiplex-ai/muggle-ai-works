@@ -16,12 +16,16 @@ const HEAD = "head1";
 const KEY = "head1..base1";
 const defaults: WatchPreferences = { autoRebase: "always", maxCatchUpRebases: 20 };
 const NO_FEEDBACK: ArmFeedbackObservation = { bodyOnlyReviewIds: [], conversationCommentIds: [], unansweredThreadComments: [] };
+const NOW_EPOCH_SECONDS = Date.parse("2026-11-16T09:00:00Z") / 1000;
+const RETRY_AT_PASSED = "2026-11-16T08:59:59Z";
+const RETRY_AT_PENDING = "2026-11-16T09:00:01Z";
 
 const observe = (overrides: Partial<WatchTickObservation> = {}): WatchTickObservation => ({
   headSha: HEAD,
   rebaseKey: KEY,
   isRebaseDue: false,
   ciBucket: CiRollupBucket.Green,
+  nowEpochSeconds: NOW_EPOCH_SECONDS,
   ...overrides,
 });
 
@@ -129,6 +133,34 @@ describe("resolveWatchTickVerdict: red CI", () => {
   });
 });
 
+describe("resolveWatchTickVerdict: a repair wait on a temporary blocker", () => {
+  const escalatedSpentHead: LastSeenPrEntry = { ci_escalated_shas: [HEAD], ci_fix_attempts: { [HEAD]: 3 } };
+  const waitingUntil = (retryAt: string, headSha = HEAD): LastSeenPrEntry => ({
+    ...escalatedSpentHead,
+    ci_wait: { head_sha: headSha, reason: "Anthropic usage limit", retry_at: retryAt },
+  });
+
+  // The #570 incident: an outage stopped the repair, and nothing re-attempted it once the outage ended.
+  it("dispatches fix-ci past the escalation and spent budget once the wait has run out", () => {
+    expect(verdictFor(waitingUntil(RETRY_AT_PASSED), { ciBucket: CiRollupBucket.Red })).toBe(WatchTickVerdict.DispatchFixCi);
+  });
+
+  it("holds while the wait is still running", () => {
+    expect(verdictFor(waitingUntil(RETRY_AT_PENDING), { ciBucket: CiRollupBucket.Red })).toBe(WatchTickVerdict.BlockCiEscalated);
+  });
+
+  it("ignores a wait recorded for another head or with an unreadable time", () => {
+    expect(verdictFor(waitingUntil(RETRY_AT_PASSED, "other"), { ciBucket: CiRollupBucket.Red })).toBe(
+      WatchTickVerdict.BlockCiEscalated,
+    );
+    expect(verdictFor(waitingUntil("soon"), { ciBucket: CiRollupBucket.Red })).toBe(WatchTickVerdict.BlockCiEscalated);
+  });
+
+  it("dispatches nothing once the head is no longer red", () => {
+    expect(verdictFor(waitingUntil(RETRY_AT_PASSED), { ciBucket: CiRollupBucket.Green })).toBe(WatchTickVerdict.BlockCiEscalated);
+  });
+});
+
 describe("resolveWatchTickVerdict: idle blocks", () => {
   it("blocks on an escalated review when nothing else applies", () => {
     expect(verdictFor({ escalated_review_ids: [7] })).toBe(WatchTickVerdict.BlockReviewsEscalated);
@@ -163,6 +195,7 @@ describe("resolveArmFloorEvidence", () => {
       isCiHeadSettled: false,
       isRebaseBudgetExhausted: false,
       blockedCiDigest: "",
+      ciRetryAt: "",
       unhandledFeedback: { reviewIds: [], conversationCommentIds: [] },
     });
   });
@@ -193,6 +226,23 @@ describe("resolveArmFloorEvidence", () => {
       false,
     );
     expect(resolveArmFloorEvidence({ catch_up_rebases: 500 }, HEAD, KEY, null, NO_FEEDBACK).isRebaseBudgetExhausted).toBe(false);
+  });
+
+  it("carries a repair wait's retry time for this head and stops settling the head once it has passed", () => {
+    const waiting = (retryAt: string): LastSeenPrEntry => ({
+      ci_escalated_shas: [HEAD],
+      ci_fix_attempts: { [HEAD]: 1 },
+      ci_wait: { head_sha: HEAD, reason: "Anthropic usage limit", retry_at: retryAt },
+    });
+    expect(resolveArmFloorEvidence(waiting(RETRY_AT_PENDING), HEAD, KEY, CAP, NO_FEEDBACK, NOW_EPOCH_SECONDS)).toMatchObject({
+      isCiHeadSettled: true,
+      ciRetryAt: String(NOW_EPOCH_SECONDS + 1),
+    });
+    expect(resolveArmFloorEvidence(waiting(RETRY_AT_PASSED), HEAD, KEY, CAP, NO_FEEDBACK, NOW_EPOCH_SECONDS)).toMatchObject({
+      isCiHeadSettled: false,
+      ciRetryAt: String(NOW_EPOCH_SECONDS - 1),
+    });
+    expect(resolveArmFloorEvidence(waiting(RETRY_AT_PENDING), "other", KEY, CAP, NO_FEEDBACK, NOW_EPOCH_SECONDS).ciRetryAt).toBe("");
   });
 
   it("drops a blocked digest spanning lines", () => {

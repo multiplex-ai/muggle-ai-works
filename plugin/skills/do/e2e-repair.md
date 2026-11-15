@@ -51,9 +51,11 @@ Map each bucket to exactly one disposition. Buckets are defined in [`../_shared/
 | `stale-script` (replay) | `regenerate` | Selectors moved; the product is fine. Regenerating is self-healing, not a code change. |
 | `transient` (regen) | `retry` | Once, then re-bucket the second result. A twice-transient failure is `infra`. |
 | `test-precondition` (either) | `repair-test` | The product is right for the data it has; the test asserts on state it never created. Repair the test case, never the product. |
-| `infra` (either) | `ask` | A Muggle Test bug. Nothing in this repo fixes it. |
+| `infra` (either) | `wait` | The runner or a provider failed — a Muggle Test bug, an outage, a usage limit. Nothing in this repo fixes it, and the owner has nothing to decide, so it is waited out and retried ([Unrepaired cases](#unrepaired-cases)). |
 | `agent-course` (regen) | `ask` | The agent needs steering, which is the user's `muggle-feedback` call to make. |
 | `unclassified` | `ask` | No bucket, no automatic action. |
+
+**An outage overrides the bucket.** A run failed by an outage outside the repo — an API usage-limit or quota error, a provider down or overloaded on every run, the Muggle cloud unreachable — takes `wait` like `infra`, whatever its bucket. Retrying into the outage spends the iteration budget on nothing. An app that does not answer is Step 0's readiness halt, not this.
 
 A `repair` disposition requires a named defect: the failing step, expected-versus-actual, and the code path it implicates. A `repair-test` disposition requires one too: the asserted state, the evidence the account lacks it (the frame, the record list), and the test-case change that would create it. Without one either is `ask`, whatever the bucket said.
 
@@ -67,12 +69,13 @@ An Inconclusive entry Stage 6 recorded as `primary failed` never executed either
 
 ## Step 3: Act
 
-Process dispositions in order — `retry`, then `regenerate`, then `repair-test`, then `repair` — so cheap self-healing runs before any code change.
+Process dispositions in order — `retry`, then `regenerate`, then `repair-test`, then `repair` — so cheap self-healing runs before any code change. After each job — a root cause found, a repair pushed, a re-run started or finished, a case left waiting — post the cycle's status per [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md#cycle-progress), in the background.
 
 - **`retry`** — re-execute the case unchanged through the Stage 6 loop. Re-bucket the result and fold it back into Step 2.
 - **`regenerate`** — regenerate the script for that test case, then re-replay. One regeneration per test case per iteration, matching Stage 6's own cap.
 - **`repair-test`** — update the test case with `muggle-remote-test-case-update` so it produces the state it asserts on: a setup step that creates the record, a seeded precondition, or a prerequisite test case it chains after. Keep the assertion as written — an edit that stops checking the behavior is not a repair. Then regenerate its script and re-run. No product code changes, so nothing is pushed.
 - **`repair`** — re-enter [`build.md`](build.md) with the named defects as this iteration's requirements amendment, then run [`unit-tests.md`](unit-tests.md) and refresh the PR through [`open-prs/update.md`](open-prs/update.md). Impact analysis does not re-run; the change is scoped to a known defect.
+- **`wait`** — nothing this pass; the case goes to [Unrepaired cases](#unrepaired-cases).
 - **`ask`** — collect every `ask` failure and present **one** `AskUserQuestion` (Step 4). Never one picker per failure.
 
 ## Step 4: The user decision
@@ -86,7 +89,7 @@ One question, listing each unrepairable failure with its bucket, failing step, a
 
 A case `state.md` already records as waived never reaches the question again.
 
-**Unattended runs.** When the cycle was started autonomously there is nobody to ask, and nobody's waiver to record. Do not skip the loop — run Steps 1–3 in full, then leave a surviving `ask` as an **open decision**, never a waiver:
+**Unattended runs.** When the cycle was started autonomously there is nobody to ask, and nobody's waiver to record. Do not skip the loop — run Steps 1–3 in full, then leave a surviving `ask` as an **open decision**, never a waiver, and every unrepaired case on the PR per [Unrepaired cases](#unrepaired-cases):
 
 1. Write the decision into `state.md`, replacing any earlier one:
    ```
@@ -97,7 +100,7 @@ A case `state.md` already records as waived never reaches the question again.
    ```
 2. Retitle the PR `[E2E FAILING]` and emit the escalation event.
 3. End the turn's final message with the decision request — one line per case naming its bucket, then the four options.
-4. Clear to Stage 8 as `decision-pending`. The armed watcher sees the walkthrough check red, fix-ci finds this decision for the head and escalates without repeating the repair, and the watcher's blocked reminder carries the cases and options until the user answers.
+4. Clear to Stage 8 as `decision-pending` — or `waiting` when every unrepaired case is a `wait`, which writes no decision. The armed watcher sees the walkthrough check red, fix-ci finds this decision or wait for the head and escalates without repeating the repair, and the watcher's blocked reminder carries the cases and options until the user answers.
 
 A readiness halt (Step 0) is not an `ask` and never becomes a decision. Silently arming the watcher on a red run, or waiving one nobody looked at, is the failure this stage exists to prevent.
 
@@ -110,6 +113,22 @@ The user's answer — to the question, or to the decision request after it was p
 After a `repair`, `repair-test`, `regenerate`, or `retry` pass, re-run [`e2e-acceptance.md`](e2e-acceptance.md) over the affected test cases only, increment `repairIteration`, and return to Step 0. A change whose `state.md` records `E2E lane: background` re-runs through that lane ([`background-e2e.md`](background-e2e.md)), queued behind any local run in flight, with this PR's URL in the brief.
 
 The loop is bounded at **3** repair iterations, the same bound the cycle guardrail already applies to E2E failures. On the third exhausted iteration, the surviving failures go to Step 4 as `ask`, each with its last bucket — the question when attended, the open decision when not.
+
+## Unrepaired cases
+
+A failing case is repaired by default. Leaving one unrepaired takes a strong reason, and there are three, each a `repairHold.kind` in the walkthrough report:
+
+| Kind | Reason | Unblocked by |
+| :--- | :----- | :----------- |
+| `temporary-blocker` | Runner or provider infrastructure outside the repo — a provider down, an API usage limit or quota, the Muggle cloud or runner failing — failed the runs or the repair (disposition `wait`). | The blocker clearing. The repair resumes on its own. |
+| `owner-decision` | A call only the owner can make: design or product direction, an `agent-course` steer, an unclassified failure (disposition `ask`). | The owner's answer to the decision. |
+| `budget-spent` | The repair budget ran out with the case still failing — Step 5's 3 iterations, or fix-ci's per-head cycles. | The owner's direction, or a new push. |
+
+Anything else is not a reason: repair the case.
+
+**The PR says why.** A cycle that leaves any case unrepaired settles the walkthrough comment before it ends, through [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A, each unrepaired entry carrying `repairHold` ([`../muggle-pr-visual-walkthrough/e2e-report-assembly.md`](../muggle-pr-visual-walkthrough/e2e-report-assembly.md)): its `bucket` and `rootCause`, the `kind`, the `reason` it is not being fixed now, and `unblockedBy` — e.g. `Anthropic usage limit until 2026-11-16 09:00 UTC; repair resumes automatically`. The report is the cycle's latest run, else the walkthrough's runs reassembled from its hidden record. A `state.md` entry or a session message is not enough: the PR's reader sees failures and no reason. Never leave the report silent.
+
+**A temporary blocker is a wait, not a stop.** It never becomes a decision request; the owner has nothing to decide. Record it in `last_seen.ci_wait` ([`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md#last_seenjson)): `head_sha`, the blocker as `reason`, and `retry_at` — the reset time the provider's error names, else one hour from now. When `retry_at` passes, the watcher re-dispatches the repair with no prompt from anyone. An `owner-decision` or `budget-spent` case stays escalated under the watcher's one-reminder rule.
 
 ## Telemetry
 
@@ -126,12 +145,14 @@ Every waive the user picked, and every open decision left for them, also emits `
 **Regenerated:** test case → new script id
 **Waived:** test case → bucket → the user's words
 **Decision pending:** test case → bucket → failing step
+**Waiting:** test case → blocker → retry time
 **Verdict out:** `<verdict after the final re-run>`
-**Clearance:** `green` | `waived — <reason>` | `decision-pending`
+**Clearance:** `green` | `waived — <reason>` | `decision-pending` | `waiting`
 
 ## Invariants
 
-- Stage 8 is unreachable while clearance is unresolved — the only exits are green, waived by the user, or decision-pending.
+- Stage 8 is unreachable while clearance is unresolved — the only exits are green, waived by the user, decision-pending, or waiting.
+- No case is left unrepaired without one of the three reasons in [Unrepaired cases](#unrepaired-cases), stated on the PR's walkthrough.
 - No waiver without the user's own pick or words; an unattended run or a spent iteration budget leaves a decision, never a waiver.
 - No bucket auto-repairs without a named defect; `repair-test` changes the test case, never product code.
 - One `AskUserQuestion` per stage run, never one per failure.

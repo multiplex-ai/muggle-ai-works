@@ -3,8 +3,8 @@
  * No I/O, no length measurement, no overflow logic — see overflow.ts for that.
  *
  * Layout (two sections):
- *   1. Summary: verdict headline + the failed/inconclusive cases with why + per-test name list (numbered;
- *      grouped by useCaseName when present).
+ *   1. Summary: verdict headline + the failed/inconclusive cases with why + the cases the repair loop left
+ *      unrepaired with why + per-test name list (numbered; grouped by useCaseName when present).
  *   2. Test details: per test case, in report order, a result table, one collapsible holding one
  *      collapsible per step with its screenshot closed by the run's summary row, then the ending screen.
  *
@@ -15,6 +15,9 @@
 import {
   DETAIL_IMAGE_WIDTH,
   MISSING_RUN_SUMMARY_TEXT,
+  REPAIR_HOLD_HEADING,
+  REPAIR_HOLD_KIND_LABELS,
+  REPAIR_HOLD_MARKER,
   RUN_SUMMARY_MARKER,
   RUN_SUMMARY_VERDICT_STATUS_LABELS,
   SHORT_ID_LABEL_SEPARATOR,
@@ -41,6 +44,7 @@ import {
   StepScreenshotDetailEnum,
   type E2eReport,
   type RecordedRunSummary,
+  type RepairHold,
   type RunSummary,
   type Step,
   type TestResult,
@@ -287,6 +291,7 @@ export function renderOverview (report: E2eReport): string {
   }
   const numbering = buildTestNumbering(latestRuns);
   lines.push(...renderNeedsAttention(buildE2eResultRecord(latestRuns.map((entry) => entry.test))));
+  lines.push(...renderRepairHolds(latestRuns));
   lines.push("");
   const anyGrouped = latestRuns.some((entry) => Boolean(entry.test.useCaseName));
   if (!anyGrouped) {
@@ -318,6 +323,31 @@ function renderNeedsAttention (record: IE2eResultRecord): string[] {
     ...record.unpassed.map((unpassed) =>
       renderUnpassedCaseBullet(unpassed, "see details", `#${testAnchor(unpassed)}`)),
   ];
+}
+
+/**
+ * The failing cases the repair loop left unrepaired, each with its bucket and root cause, why it is not being fixed
+ * automatically, and what unblocks it. Empty when no case carries a hold.
+ *
+ * Output shape: `- ⏸️ **Checkout** — \`infra\`: runner rejected by the usage limit · not auto-fixed (temporary blocker):
+ * Anthropic usage limit · unblocks: limit resets 2026-11-16 09:00 UTC; repair resumes automatically`
+ */
+function renderRepairHolds (latestRuns: readonly ILatestRun[]): string[] {
+  const heldLines = latestRuns.flatMap((entry) => {
+    const repairHold: RepairHold | undefined = entry.test.status === "passed" ? undefined : entry.test.repairHold;
+    return repairHold ? [renderRepairHoldBullet(entry.test, repairHold)] : [];
+  });
+  if (heldLines.length === 0) return [];
+  return ["", REPAIR_HOLD_HEADING, "", ...heldLines];
+}
+
+function renderRepairHoldBullet (test: TestResult, repairHold: RepairHold): string {
+  return (
+    `- ${REPAIR_HOLD_MARKER} **${testLabel(test)}** — ` +
+    `\`${singleLine(repairHold.bucket)}\`: ${escapeFreeText(singleLine(repairHold.rootCause))} · ` +
+    `not auto-fixed (${REPAIR_HOLD_KIND_LABELS[repairHold.kind]}): ${escapeFreeText(singleLine(repairHold.reason))} · ` +
+    `unblocks: ${escapeFreeText(singleLine(repairHold.unblockedBy))}`
+  );
 }
 
 /**

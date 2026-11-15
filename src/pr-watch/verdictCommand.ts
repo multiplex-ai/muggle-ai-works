@@ -47,7 +47,7 @@ const usageFailure = (problem: string): PrWatchVerdictOutcome => ({
  * Run one `pr-watch-verdict.mjs` invocation against a slot's `last_seen.json` text.
  *
  * Output shape: `arm-floors` prints
- * `REBASE_ATTEMPTED=0\nCI_SETTLED=1\nBLOCKED_CIDIGEST=<digest>\nREBASE_BUDGET_EXHAUSTED=0\n` followed by
+ * `REBASE_ATTEMPTED=0\nCI_SETTLED=1\nBLOCKED_CIDIGEST=<digest>\nCI_RETRY_AT=<epoch seconds>\nREBASE_BUDGET_EXHAUSTED=0\n` then
  * `UNHANDLED_REVIEW_IDS=41 57\nUNHANDLED_CONVERSATION_IDS=\nREVIEW_FLOOR_CEILING=40\nCOMMENT_FLOOR_CEILING=\n` and
  * `CONVERSATION_FLOOR_CEILING=\n` — a ceiling is empty when nothing below it is unhandled;
  * `tick` prints `VERDICT=dispatch-rebase\n`.
@@ -56,6 +56,7 @@ export function runPrWatchVerdictCommand(
   commandLine: string[],
   lastSeenJson: string,
   resolvePreferences: () => WatchPreferences,
+  nowEpochSeconds: number = Math.floor(Date.now() / 1000),
 ): PrWatchVerdictOutcome {
   const [subcommand, ...flagTokens] = commandLine;
   const flags = parseVerdictArguments(flagTokens);
@@ -70,13 +71,14 @@ export function runPrWatchVerdictCommand(
       bodyOnlyReviewIds: parseFeedbackIdList(flags[BODY_REVIEWS_FLAG] ?? ""),
       conversationCommentIds: parseFeedbackIdList(flags[CONVERSATION_COMMENTS_FLAG] ?? ""),
       unansweredThreadComments: parseUnansweredThreadComments(flags[UNANSWERED_THREADS_FLAG] ?? ""),
-    });
+    }, nowEpochSeconds);
     const { unhandledFeedback } = evidence;
     return {
       stdout:
         `REBASE_ATTEMPTED=${evidence.isRebaseKeyAttempted ? 1 : 0}\n` +
         `CI_SETTLED=${evidence.isCiHeadSettled ? 1 : 0}\n` +
         `BLOCKED_CIDIGEST=${evidence.blockedCiDigest}\n` +
+        `CI_RETRY_AT=${evidence.ciRetryAt}\n` +
         `REBASE_BUDGET_EXHAUSTED=${evidence.isRebaseBudgetExhausted ? 1 : 0}\n` +
         `UNHANDLED_REVIEW_IDS=${unhandledFeedback.reviewIds.join(" ")}\n` +
         `UNHANDLED_CONVERSATION_IDS=${unhandledFeedback.conversationCommentIds.join(" ")}\n` +
@@ -94,7 +96,7 @@ export function runPrWatchVerdictCommand(
     if (!headSha || !rebaseKey) return usageFailure(`--${HEAD_FLAG} and --${REBASE_KEY_FLAG} are required`);
     const verdict = resolveWatchTickVerdict(
       lastSeenEntry,
-      { headSha: headSha, rebaseKey: rebaseKey, isRebaseDue: flags[REBASE_DUE_FLAG] === REBASE_DUE_YES, ciBucket: ciBucket },
+      { headSha: headSha, rebaseKey: rebaseKey, isRebaseDue: flags[REBASE_DUE_FLAG] === REBASE_DUE_YES, ciBucket: ciBucket, nowEpochSeconds: nowEpochSeconds },
       resolvePreferences(),
     );
     return { stdout: `VERDICT=${verdict}\n`, stderr: "", exitCode: 0 };

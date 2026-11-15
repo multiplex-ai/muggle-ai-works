@@ -9,6 +9,7 @@
  */
 
 import { spawn } from "child_process";
+import { randomUUID } from "node:crypto";
 import * as fs from "fs/promises";
 import * as os from "node:os";
 import { fileURLToPath } from "node:url";
@@ -28,6 +29,7 @@ import { getAuthService, getRunResultStorageService, getStorageService } from ".
 import {
   buildGenerationActionScript,
   buildReplayActionScript,
+  buildWebsiteScanActionScript,
 } from "./action-script-builders.js";
 import {
   describeStoppedRun,
@@ -36,13 +38,19 @@ import {
   resolveStoppedRunStatus,
 } from "./execution-stop.js";
 import { RunStopReasonEnum } from "./execution-stop-types.js";
-import { DEFAULT_GENERATION_TIMEOUT_MS, DEFAULT_REPLAY_TIMEOUT_MS } from "./execution-timeout-constants.js";
+import {
+  DEFAULT_GENERATION_TIMEOUT_MS,
+  DEFAULT_REPLAY_TIMEOUT_MS,
+  DEFAULT_WEBSITE_SCAN_TIMEOUT_MS,
+} from "./execution-timeout-constants.js";
 import { acquireLocalExecutionLock } from "./local-execution-lock.js";
 import { describeElectronSpawnFailure } from "./spawn-failure-message.js";
 import { resolveEffectiveFreshSession } from "./fresh-session.js";
 import { readStudioBuildAsync } from "./studio-build.js";
 import type { ILocalExecutionContext } from "./run-result-storage-service.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
+import { WebsiteScanExitEnum } from "./website-scan-types.js";
+import type { IWebsiteScanExecutionResult } from "./website-scan-types.js";
 
 const logger = getLogger();
 
@@ -591,7 +599,7 @@ function resolveFailedRunStatus(executionResult: IElectronExecutionResult): RunR
  */
 async function executeElectronAppAsync(params: {
   runId: string;
-  runType: "generation" | "replay";
+  runType: "generation" | "replay" | "websiteScan";
   electronAppPath: string | null;
   scriptFilePath: string;
   authFilePath: string;
@@ -600,7 +608,7 @@ async function executeElectronAppAsync(params: {
   showUi?: boolean;
   freshSession?: boolean;
 }): Promise<IElectronExecutionResult> {
-  const mode = params.runType === "generation" ? "explore" : "engine";
+  const mode = params.runType === "replay" ? "engine" : "explore";
   const electronAppPath = requireElectronAppPath(params.electronAppPath);
   const spawnArgs = [mode, params.scriptFilePath, params.mutationsFilePath ?? "", params.authFilePath];
 
@@ -1246,6 +1254,101 @@ async function runReplayLocked(params: {
   }
 }
 
+
+/**
+ * Run a website scan (use-case discovery) for a project in the local Studio.
+ *
+ * Studio writes the candidates it finds into the discovery memory named by
+ * `useCaseDiscoverMemoryId`; the caller reads them from there. Parallel calls from one `cwd` share the
+ * local execution lock.
+ *
+ * @param params.projectId - Cloud project the scan's candidates belong to.
+ * @param params.url - Site URL the scan starts from.
+ * @param params.cwd - Caller's working directory, the lock's holder identity.
+ * @param params.useCaseDiscoverMemoryId - Discovery memory Studio writes candidates to; created when missing.
+ * @param params.targetUseCaseCandidateCount - Memory candidate count at which Studio stops.
+ * @param params.timeoutMs - Longest the scan runs before it is asked to stop.
+ * @param params.showUi - Show the Studio window.
+ * @returns How the Studio process ended.
+ */
+export async function executeWebsiteScan(params: {
+  projectId: string;
+  url: string;
+  cwd: string;
+  useCaseDiscoverMemoryId: string;
+  targetUseCaseCandidateCount: number;
+  timeoutMs?: number;
+  showUi?: boolean;
+}): Promise<IWebsiteScanExecutionResult> {
+  const timeoutMs = params.timeoutMs ?? DEFAULT_WEBSITE_SCAN_TIMEOUT_MS;
+  const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd, runTimeoutMs: timeoutMs });
+  try {
+    return await runWebsiteScanLocked({ ...params, timeoutMs: timeoutMs });
+  } finally {
+    await lockHandle.release();
+  }
+}
+
+async function runWebsiteScanLocked(params: {
+  projectId: string;
+  url: string;
+  useCaseDiscoverMemoryId: string;
+  targetUseCaseCandidateCount: number;
+  timeoutMs: number;
+  showUi?: boolean;
+}): Promise<IWebsiteScanExecutionResult> {
+  const runId = randomUUID();
+  const startedAt = Date.now();
+  const authContent = await buildStudioAuthContentAsync();
+  const inputFilePath = await writeTempFile({
+    filename: `${runId}_input.json`,
+    data: buildWebsiteScanActionScript({
+      projectId: params.projectId,
+      url: params.url,
+      runId: runId,
+      ownerUserId: authContent.userId,
+      useCaseDiscoverMemoryId: params.useCaseDiscoverMemoryId,
+      targetUseCaseCandidateCount: params.targetUseCaseCandidateCount,
+    }),
+  });
+  const authFilePath = await writeTempFile({ filename: `${runId}_auth.json`, data: authContent });
+
+  try {
+    const executionResult = await executeElectronAppAsync({
+      runId: runId,
+      runType: "websiteScan",
+      electronAppPath: resolveElectronAppPathOrNull(),
+      scriptFilePath: inputFilePath,
+      authFilePath: authFilePath,
+      timeoutMs: params.timeoutMs,
+      showUi: params.showUi,
+    });
+    await writeExecutionLogs({ runId: runId, stdout: executionResult.stdout, stderr: executionResult.stderr });
+    const durationMs = Date.now() - startedAt;
+
+    if (executionResult.stopReason === RunStopReasonEnum.Timeout) {
+      return { runId: runId, exit: WebsiteScanExitEnum.TimedOut, durationMs: durationMs, failureMessage: null };
+    }
+    if (executionResult.exitCode !== 0 || executionResult.stopReason !== undefined) {
+      return {
+        runId: runId,
+        exit: WebsiteScanExitEnum.Failed,
+        durationMs: durationMs,
+        failureMessage: describeElectronFailure({ executionResult: executionResult, timeoutMs: params.timeoutMs }),
+      };
+    }
+    return { runId: runId, exit: WebsiteScanExitEnum.Completed, durationMs: durationMs, failureMessage: null };
+  } catch (error) {
+    return {
+      runId: runId,
+      exit: WebsiteScanExitEnum.Failed,
+      durationMs: Date.now() - startedAt,
+      failureMessage: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    await cleanupTempFiles({ filePaths: [inputFilePath, authFilePath] });
+  }
+}
 
 /**
  * Cancel an active execution.

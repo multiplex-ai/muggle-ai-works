@@ -20,8 +20,13 @@ export {
   cancelExecution,
   executeReplay,
   executeTestGeneration,
+  executeWebsiteScan,
   listActiveExecutions,
 } from "./execution-service.js";
+
+export { DEFAULT_WEBSITE_SCAN_TIMEOUT_MS } from "./execution-timeout-constants.js";
+export { WebsiteScanExitEnum } from "./website-scan-types.js";
+export type { IWebsiteScanExecutionResult } from "./website-scan-types.js";
 
 export { findRunCheckoutRefusal, isLoopbackUrl } from "./run-checkout-gate.js";
 

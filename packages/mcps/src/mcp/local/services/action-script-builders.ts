@@ -10,6 +10,12 @@ import type { PinnedAccount, TestCaseDetails, TestScriptDetails } from "../contr
 import { resolveDisplayParams, resolveReplayDisplayParams } from "./display-resolution.js";
 import { rewriteActionScriptUrls } from "./replay-url-rewrite.js";
 import type { DisplayResolution } from "../types/enums.js";
+import {
+  WEBSITE_SCAN_EXPECTED_RESULT,
+  WEBSITE_SCAN_GOAL,
+  WEBSITE_SCAN_PRECONDITION,
+  WEBSITE_SCAN_WORKFLOW_TYPE,
+} from "./website-scan-constants.js";
 
 /**
  * Get a required string from an object field.
@@ -126,6 +132,50 @@ export function buildGenerationActionScript(params: {
     precondition: params.testCase.precondition ?? "",
     instructions: params.testCase.instructions ?? "",
     expectedResult: params.testCase.expectedResult,
+    steps: [],
+    ownerId: params.ownerUserId,
+    createdAt: Date.now(),
+    isRemoteScript: false,
+    status: "active",
+  };
+}
+
+/**
+ * Build a local action script for a website scan (explore mode, use-case discovery).
+ *
+ * Studio writes each candidate it finds into the discovery memory named by
+ * `useCaseDiscoverMemoryId` and stops once that memory holds `targetUseCaseCandidateCount` candidates.
+ */
+export function buildWebsiteScanActionScript(params: {
+  projectId: string;
+  url: string;
+  runId: string;
+  ownerUserId: string;
+  useCaseDiscoverMemoryId: string;
+  targetUseCaseCandidateCount: number;
+}): Record<string, unknown> {
+  const scanName = `Local Website Scan ${params.url}`;
+  return {
+    actionScriptId: params.runId,
+    actionScriptName: scanName,
+    actionType: "Exploratory",
+    actionParams: {
+      type: WEBSITE_SCAN_WORKFLOW_TYPE,
+      name: scanName,
+      ownerId: params.ownerUserId,
+      projectId: params.projectId,
+      workflowRunId: params.runId,
+      useCaseDiscoverMemoryId: params.useCaseDiscoverMemoryId,
+      targetUseCaseCandidateCount: params.targetUseCaseCandidateCount,
+      // Resolved server-side per project; the MCP has no client-side source for it.
+      sharedTestMemoryId: "",
+      runEnvironmentType: "local",
+    },
+    goal: WEBSITE_SCAN_GOAL,
+    url: params.url,
+    description: scanName,
+    precondition: WEBSITE_SCAN_PRECONDITION,
+    expectedResult: WEBSITE_SCAN_EXPECTED_RESULT,
     steps: [],
     ownerId: params.ownerUserId,
     createdAt: Date.now(),

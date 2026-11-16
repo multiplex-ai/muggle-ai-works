@@ -75,6 +75,15 @@ export const CODEX_GATE_TRACE_ENV = "MUGGLE_GATE_EVAL_TRACE";
 /** The scenario's scripted answers, as a JSON file the Codex hook reads. */
 export const CODEX_GATE_ANSWERS_ENV = "MUGGLE_GATE_EVAL_ANSWERS";
 
+/** The env var naming resolve-codex-auth's ordered pool of subscription logins: `0.json`, `1.json`, … */
+export const CODEX_AUTH_POOL_ENV = "CODEX_AUTH_POOL_DIR";
+
+/** Beside a pool login, the marker saying it hit its usage limit; every eval process in the job then skips it. */
+export const CODEX_EXHAUSTED_LOGIN_SUFFIX = ".exhausted";
+
+/** In a Codex home, the file naming which pool login its auth.json holds; absent means login 0, which seed-home.sh copies. */
+export const CODEX_INSTALLED_LOGIN_FILENAME = "muggle-eval-login-index";
+
 /** First line of every config.toml an eval's Codex harness writes; each refuses to overwrite one without it. */
 export const CODEX_EVAL_HOME_MARKER = "# Written by a muggle eval harness, which owns this directory.";
 

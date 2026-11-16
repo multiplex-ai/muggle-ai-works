@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,7 +46,13 @@ interface ResolveRun {
   runnerTemp: string;
 }
 
-function runResolve(secrets: { apiKey?: string; subscriptionAuthJson?: string }): ResolveRun {
+const SUBSCRIPTION_SECRET_NAMES = ["CODEX_AUTH_JSON", "CODEX_AUTH_JSON_2", "CODEX_AUTH_JSON_3", "CODEX_AUTH_JSON_4", "CODEX_AUTH_JSON_5"];
+
+function subscriptionLogin(accountId: string): string {
+  return JSON.stringify({ ...JSON.parse(SUBSCRIPTION_AUTH_JSON), tokens: { refresh_token: `refresh-${accountId}`, account_id: accountId } });
+}
+
+function runResolve(secrets: { apiKey?: string; subscriptionLogins?: Record<string, string> }): ResolveRun {
   const workDir = mkdtempSync(join(tmpdir(), "resolve-codex-auth-"));
   const githubEnvPath = join(workDir, "github-env");
   const githubOutputPath = join(workDir, "github-output");
@@ -60,7 +66,7 @@ function runResolve(secrets: { apiKey?: string; subscriptionAuthJson?: string })
       GITHUB_ENV: githubEnvPath,
       GITHUB_OUTPUT: githubOutputPath,
       OPENAI_API_KEY_INPUT: secrets.apiKey ?? "",
-      SUBSCRIPTION_AUTH_JSON: secrets.subscriptionAuthJson ?? "",
+      ...Object.fromEntries(SUBSCRIPTION_SECRET_NAMES.map((secretName) => [secretName, secrets.subscriptionLogins?.[secretName] ?? ""])),
     },
   });
   return {
@@ -74,27 +80,64 @@ function runResolve(secrets: { apiKey?: string; subscriptionAuthJson?: string })
 
 describe.runIf(hasBash)("resolve-codex-auth", () => {
   it("exports an API key as CODEX_API_KEY and prefers it over a subscription login", () => {
-    const run = runResolve({ apiKey: "sk-test", subscriptionAuthJson: SUBSCRIPTION_AUTH_JSON });
+    const run = runResolve({ apiKey: "sk-test", subscriptionLogins: { CODEX_AUTH_JSON: SUBSCRIPTION_AUTH_JSON } });
     expect(run.exitCode).toBe(0);
     expect(run.exportedEnv).toContain("CODEX_API_KEY=sk-test");
     expect(run.exportedEnv).not.toContain("CODEX_AUTH_FILE");
+    expect(run.exportedEnv).not.toContain("CODEX_AUTH_POOL_DIR");
     expect(run.outputs).toContain("method=api-key");
   });
 
   it("writes a subscription login to a private file and exports its path", () => {
-    const run = runResolve({ subscriptionAuthJson: SUBSCRIPTION_AUTH_JSON });
+    const run = runResolve({ subscriptionLogins: { CODEX_AUTH_JSON: SUBSCRIPTION_AUTH_JSON } });
     expect(run.exitCode).toBe(0);
     expect(run.outputs).toContain("ready=true");
     expect(run.outputs).toContain("method=subscription");
+    expect(run.outputs).toContain("login-count=1");
     const exportedAuthFile = /^CODEX_AUTH_FILE=(.+)$/m.exec(run.exportedEnv)?.[1];
     expect(exportedAuthFile).toBeDefined();
     expect(JSON.parse(readFileSync(exportedAuthFile as string, "utf8")).tokens.refresh_token).toBe("refresh");
   });
 
+  it("pools every set login in secret order, skipping unset ones, with the first as CODEX_AUTH_FILE", () => {
+    const run = runResolve({
+      subscriptionLogins: {
+        CODEX_AUTH_JSON: subscriptionLogin("first"),
+        CODEX_AUTH_JSON_3: subscriptionLogin("third"),
+        CODEX_AUTH_JSON_5: subscriptionLogin("fifth"),
+      },
+    });
+    expect(run.exitCode).toBe(0);
+    expect(run.outputs).toContain("login-count=3");
+    const poolDir = /^CODEX_AUTH_POOL_DIR=(.+)$/m.exec(run.exportedEnv)?.[1] as string;
+    expect(poolDir).toBeDefined();
+    expect(readdirSync(poolDir).sort()).toEqual(["0.json", "1.json", "2.json"]);
+    const pooledAccounts = ["0.json", "1.json", "2.json"].map(
+      (filename) => JSON.parse(readFileSync(join(poolDir, filename), "utf8")).tokens.account_id,
+    );
+    expect(pooledAccounts).toEqual(["first", "third", "fifth"]);
+    const exportedAuthFile = /^CODEX_AUTH_FILE=(.+)$/m.exec(run.exportedEnv)?.[1] as string;
+    expect(JSON.parse(readFileSync(exportedAuthFile, "utf8")).tokens.account_id).toBe("first");
+  });
+
+  it("pools a later login even when CODEX_AUTH_JSON itself is unset", () => {
+    const run = runResolve({ subscriptionLogins: { CODEX_AUTH_JSON_2: subscriptionLogin("second") } });
+    expect(run.exitCode).toBe(0);
+    expect(run.outputs).toContain("login-count=1");
+  });
+
   it("fails loudly on a secret that is not a codex login", () => {
-    const run = runResolve({ subscriptionAuthJson: '{"auth_mode":"chatgpt"}' });
+    const run = runResolve({ subscriptionLogins: { CODEX_AUTH_JSON: '{"auth_mode":"chatgpt"}' } });
     expect(run.exitCode).toBe(1);
     expect(run.stderr).toContain("CODEX_AUTH_JSON unusable");
+  });
+
+  it("names which pooled secret is not a codex login", () => {
+    const run = runResolve({
+      subscriptionLogins: { CODEX_AUTH_JSON: SUBSCRIPTION_AUTH_JSON, CODEX_AUTH_JSON_4: '{"auth_mode":"chatgpt"}' },
+    });
+    expect(run.exitCode).toBe(1);
+    expect(run.stderr).toContain("CODEX_AUTH_JSON_4 unusable");
   });
 
   it("reports not ready with neither secret, so the job skips", () => {

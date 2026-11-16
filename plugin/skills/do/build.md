@@ -17,7 +17,7 @@ Implement the code change for this dev cycle. Read the frozen requirements from 
 
 For each affected repo:
 
-0. **Check the design gate.** `state.md` must carry a `Design: finalized` line from [Stage 2.5](design.md). Without it, edit nothing: go back and run Stage 2.5. Every re-entry below inherits the line already recorded.
+0. **Check the design gate.** `state.md` must carry a `Design: finalized` line from [Stage 2.5](design.md). Without it, edit nothing: go back and run Stage 2.5. Every re-entry below inherits the line already recorded. A design slot — `state.md` carries `Design PR for: <slug>` — is the one exception: its review cycles edit only the file its `Design doc:` line names, and nothing else.
 1. **Re-read `requirements.md`.** Treat goal + AC as frozen. If something is unclear at this stage, that's a pre-flight bug — escalate, do not improvise.
 1.5. **Prove a bug fix first.** When `requirements.md` says `Change type: bug fix`, write a unit test for its regression criterion before touching the fix and run it: it must fail, for the bug's reason. Apply the fix, then run it again: it must pass. This stage's marker records the criterion, the test's file path, and `failed before, passed after`. A bug no unit test can reach is waived in `state.md` with the reason. The re-entries below owe no new regression test: they carry review comments and defects the change itself introduced.
 2. **Apply the change** in the repo's worktree. Edit existing files first; create new files only when the requirements demand it. Match the surrounding code's style, naming, and file layout.

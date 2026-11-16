@@ -39,6 +39,10 @@ describe("isMuggleDoForwardInvocation", () => {
     expect(isMuggleDoForwardInvocation(prompt)).toBe(true);
   });
 
+  it("arms the resume a merged design PR dispatches, since it opens the build PR", () => {
+    expect(isMuggleDoForwardInvocation("/muggle-do resume slug=fix-parser")).toBe(true);
+  });
+
   it.each(["/mdo", "/muggle-do help", "/mdo menu", "/muggle:muggle-do ?"])("leaves the menu form %s unarmed", (prompt) => {
     expect(isMuggleDoForwardInvocation(prompt)).toBe(false);
   });

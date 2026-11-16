@@ -33,6 +33,13 @@ The facts [`next-step.md`](next-step.md) reports a finished PR from. Teardown de
 5. **Teardown (`merged` only).** When the PR is `merged`, run [`../_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md) with `{worktreePath}` and `{branch}`. That file owns the teardown sequence **and its safety rules** — including skipping worktree-remove and local branch deletion when no worktree was used. This stage adds no teardown logic of its own. On `closed`, skip teardown — the branch and any worktree stay intact.
 6. **Record the PR in the [chat ledger](#chat-ledger).** Complete the terminal record with `teardown` and `finishedAt`, then write it to the ledger. The ledger is outside the slot, so this holds whether or not teardown cleared it.
 7. **Log while the slot exists.** When teardown's report marks `Session slot cleared` ✅, write nothing: the slot and its `followup.log` are gone, an append there fails or recreates the directory as a stray slot, and the retirement and teardown reports printed this turn are the record. Otherwise append a cleanup line to the session's `followup.log`, recording the case ids retired and whether teardown ran.
-8. Suggest the next step per [`next-step.md`](next-step.md), passing whether teardown ran and the terminal record. This is the stage's last action.
+8. Suggest the next step per [`next-step.md`](next-step.md), passing whether teardown ran and the terminal record. This is the stage's last action — except on a merged [design slot](#design-slot), whose resume replaces it.
 
 **Teardown never returns a question, and neither does retirement.** Each finishes with its report — every item done, skipped, or blocked-with-a-reason — so steps 6, 7 and 8 always run. A teardown that appears to be waiting on the user has stalled mid-sequence; the stage is not complete until the report and the next-step suggestion are both printed.
+
+## Design slot
+
+A slot whose `state.md` carries `Design PR for: <build-slug>` holds a design PR ([`design.md`](design.md#design-pr)), and its terminal state is the design decision. After step 7, replace the `Design: pending` line in `~/.muggle-ai/muggle-do/sessions/<build-slug>/state.md`:
+
+- `merged` → `Design: finalized — design PR <url> merged <ISO-8601 timestamp>`. The merge is the approval: dispatch `/muggle-do resume slug=<build-slug>` through the Skill tool as the stage's last action, in place of step 8.
+- `closed` → `Design: rejected — design PR <url> closed unmerged <ISO-8601 timestamp>`, then step 8.

@@ -39,7 +39,7 @@ AI agents: start with [AGENTS.md](AGENTS.md) (install, sign-in, flows, skills, e
 | :- | :---- | :----------- | :----------------- |
 | 1 | Pre-flight | Detects repo, branch, dev server, project, credentials; asks everything it can't detect in **one** turn | `state.md` |
 | 2 | Requirements | Freezes goal and acceptance criteria before a line is written | `requirements.md` |
-| 2.5 | Design | Writes the spec and waits for your approval — no code before it is finalized | `design.md` |
+| 2.5 | Design | Opens a `[DESIGN]` PR with the spec — merging it approves the design and starts the build; no code before it | Design PR |
 | 3 | Build | Builds the approved design through a plan → subagent build, then commits (signed) | Conventional commits |
 | 4 | Impact analysis | Maps the diff to the user flows it can break | Affected-flow list |
 | 5 | Unit tests | Runs the suite authored in stage 3 | Exit code |

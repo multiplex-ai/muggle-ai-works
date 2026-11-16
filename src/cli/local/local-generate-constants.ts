@@ -7,9 +7,6 @@ export const LOCAL_FLAG_REQUIRED_MESSAGE =
 /** Log threshold while `muggle generate --local` runs, so only the result reaches the terminal. */
 export const LOCAL_GENERATE_COMMAND_LOG_LEVEL = "warn";
 
-/** Tolerance between this machine's clock and the backend's when matching the run the studio published. */
-export const UPLOADED_RUN_CLOCK_SKEW_MS = 60_000;
-
 /** Signals that cancel an in-flight generation so the studio still publishes what it recorded. */
 export const LOCAL_GENERATE_CANCEL_SIGNALS: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
 

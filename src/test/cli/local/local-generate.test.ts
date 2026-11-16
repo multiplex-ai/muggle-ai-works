@@ -74,13 +74,9 @@ describe("runLocalGenerateAsync", () => {
   it("runs the MCP generation tool with the fetched test case and reports the published ids", async () => {
     remoteToolAnswers({
       "muggle-remote-test-case-get": { content: remoteTestCase },
-      "muggle-remote-wf-get-latest-ts-gen-by-tc": { content: { id: "runtime-1" } },
-      "muggle-remote-wf-get-ts-gen-latest-run": {
-        content: { id: "cloud-run-1", createdAt: Date.now() + 1000, taskDef: { testCaseId: TEST_CASE_ID } },
-      },
     });
     executeTool.mockResolvedValue({ content: "ok", isError: false, data: { id: "local-run-1", status: "passed" } });
-    getRunResult.mockReturnValue({ status: "passed", cloudActionScriptId: "as-1" });
+    getRunResult.mockReturnValue({ status: "passed", cloudActionScriptId: "as-1", cloudTestScriptId: "ts-1" });
 
     const generationOutcome = await runLocalGenerateAsync({ args: generateArgs, commandStartedAt: Date.now() });
 
@@ -101,7 +97,7 @@ describe("runLocalGenerateAsync", () => {
       runId: "local-run-1",
       testCaseId: TEST_CASE_ID,
       actionScriptId: "as-1",
-      uploadedRunId: "cloud-run-1",
+      testScriptId: "ts-1",
       durationMs: expect.any(Number),
       error: null,
     });
@@ -110,10 +106,6 @@ describe("runLocalGenerateAsync", () => {
   it("generates for a DRAFT test case without changing its status or calling any write tool", async () => {
     remoteToolAnswers({
       "muggle-remote-test-case-get": { content: { ...remoteTestCase, status: "DRAFT" } },
-      "muggle-remote-wf-get-latest-ts-gen-by-tc": { content: { id: "runtime-1" } },
-      "muggle-remote-wf-get-ts-gen-latest-run": {
-        content: { id: "cloud-run-1", createdAt: Date.now() + 1000, taskDef: { testCaseId: TEST_CASE_ID } },
-      },
     });
     executeTool.mockResolvedValue({ content: "ok", isError: false, data: { id: "local-run-5", status: "passed" } });
     getRunResult.mockReturnValue({ status: "passed", cloudActionScriptId: "as-5" });
@@ -122,31 +114,10 @@ describe("runLocalGenerateAsync", () => {
 
     expect(generationOutcome.status).toBe(LocalGenerateStatus.Passed);
     expect(executeTool.mock.calls[0]![1]).not.toHaveProperty("testCase.status");
-    expect(executeQaTool.mock.calls.map((call) => call[0])).toEqual([
-      "muggle-remote-test-case-get",
-      "muggle-remote-wf-get-latest-ts-gen-by-tc",
-      "muggle-remote-wf-get-ts-gen-latest-run",
-    ]);
+    expect(executeQaTool.mock.calls.map((call) => call[0])).toEqual(["muggle-remote-test-case-get"]);
   });
 
-  it("reports no cloud run when the latest one predates this run", async () => {
-    remoteToolAnswers({
-      "muggle-remote-test-case-get": { content: remoteTestCase },
-      "muggle-remote-wf-get-latest-ts-gen-by-tc": { content: { id: "runtime-1" } },
-      "muggle-remote-wf-get-ts-gen-latest-run": {
-        content: { id: "old-run", createdAt: Date.now() - 3_600_000, taskDef: { testCaseId: TEST_CASE_ID } },
-      },
-    });
-    executeTool.mockResolvedValue({ content: "ok", isError: false, data: { id: "local-run-1", status: "passed" } });
-    getRunResult.mockReturnValue({ status: "passed", cloudActionScriptId: "as-1" });
-
-    const generationOutcome = await runLocalGenerateAsync({ args: generateArgs, commandStartedAt: Date.now() });
-
-    expect(generationOutcome.actionScriptId).toBe("as-1");
-    expect(generationOutcome.uploadedRunId).toBeNull();
-  });
-
-  it("reports a failed run with its error headline and skips the lookup when nothing was published", async () => {
+  it("reports a failed run with its error headline and no uploaded ids", async () => {
     remoteToolAnswers({ "muggle-remote-test-case-get": { content: remoteTestCase } });
     executeTool.mockResolvedValue({
       content: "## Test Generation Failed",
@@ -161,7 +132,7 @@ describe("runLocalGenerateAsync", () => {
       status: LocalGenerateStatus.Failed,
       runId: "local-run-2",
       actionScriptId: null,
-      uploadedRunId: null,
+      testScriptId: null,
       error: "Electron exited with code 1.",
     });
     expect(executeQaTool).toHaveBeenCalledTimes(1);
@@ -242,7 +213,7 @@ describe("generateCommand", () => {
       "runId",
       "testCaseId",
       "actionScriptId",
-      "uploadedRunId",
+      "testScriptId",
       "durationMs",
       "error",
     ]);

@@ -44,7 +44,7 @@ export interface ILocalGenerateArgs {
  * The single line `muggle generate --local --json` prints.
  *
  * Output shape: `{"status":"passed","runId":"<local run id>","testCaseId":"tc-1","actionScriptId":"as-1",
- * "uploadedRunId":"wr-1","durationMs":91234,"error":null}`.
+ * "testScriptId":"ts-1","durationMs":91234,"error":null}`.
  */
 export interface ILocalGenerateResult {
   /** Final outcome of the run. */
@@ -55,8 +55,8 @@ export interface ILocalGenerateResult {
   testCaseId: string;
   /** Cloud action script the studio published, or null when nothing was published. */
   actionScriptId: string | null;
-  /** Cloud workflow run the published run was filed under, or null when it could not be identified. */
-  uploadedRunId: string | null;
+  /** Cloud test script the studio uploaded, or null when nothing was uploaded. */
+  testScriptId: string | null;
   /** Wall time of the command in milliseconds. */
   durationMs: number;
   /** Why the run did not pass, or null. */
@@ -78,11 +78,4 @@ export interface IRemoteTestCaseRecord {
   displayOptions?: unknown;
   pinnedAccount?: unknown;
   alwaysStartsFreshSession?: unknown;
-}
-
-/** Cloud workflow run fields used to match a published run, as the latest-run tool returns them. */
-export interface IRemoteWorkflowRunRecord {
-  id?: unknown;
-  createdAt?: unknown;
-  taskDef?: { testCaseId?: unknown };
 }

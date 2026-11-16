@@ -42,8 +42,6 @@ import { mapOrganizationList } from "./organization-list-transform.js";
 import { mapPricingCatalog, mapWalletPackageList } from "./pricing-transform.js";
 import { PRICING_GET_TOOL_NAME, WALLET_PACKAGES_PATH } from "./pricing-transform-constants.js";
 import {
-  GENERATION_LATEST_RUN_TOOL_NAME,
-  LATEST_GENERATION_RUNTIME_BY_TEST_CASE_TOOL_NAME,
   TEST_CASE_GET_TOOL_NAME,
   USE_CASE_DISCOVERY_MEMORY_GET_TOOL_NAME,
 } from "./tool-name-constants.js";
@@ -1037,7 +1035,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: GENERATION_LATEST_RUN_TOOL_NAME,
+    name: "muggle-remote-wf-get-ts-gen-latest-run",
     description: "Get the latest run status for a test script generation workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
@@ -1049,7 +1047,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: LATEST_GENERATION_RUNTIME_BY_TEST_CASE_TOOL_NAME,
+    name: "muggle-remote-wf-get-latest-ts-gen-by-tc",
     description: "Get the latest test script generation runtime for a specific test case.",
     inputSchema: schemas.WorkflowGetLatestScriptGenByTestCaseInputSchema,
     mapToUpstream: (input) => {

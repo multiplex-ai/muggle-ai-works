@@ -13,7 +13,7 @@ import { getActiveRuntimeTarget, getLogger, localQa } from "@muggleai/mcp";
 
 import { parseLocalGenerateArgs } from "./local-generate-args.js";
 import { LOCAL_GENERATE_CANCEL_SIGNALS, LOCAL_GENERATE_COMMAND_LOG_LEVEL } from "./local-generate-constants.js";
-import { fetchRemoteTestCaseAsync, findUploadedRunIdAsync } from "./local-generate-remote.js";
+import { fetchRemoteTestCaseAsync } from "./local-generate-remote.js";
 import { toGenerationTestCase } from "./local-generate-test-case.js";
 import {
   LocalGenerateStatus,
@@ -69,7 +69,7 @@ export async function runLocalGenerateAsync(params: {
     runId: resultFields.runId,
     testCaseId: args.testCaseId,
     actionScriptId: resultFields.actionScriptId,
-    uploadedRunId: resultFields.uploadedRunId,
+    testScriptId: resultFields.testScriptId,
     durationMs: Date.now() - params.commandStartedAt,
     error: resultFields.error,
   });
@@ -81,7 +81,6 @@ export async function runLocalGenerateAsync(params: {
     const remoteTestCase = await fetchRemoteTestCaseAsync({ testCaseId: args.testCaseId, correlationId: correlationId });
     const testCase = toGenerationTestCase({ remoteTestCase: remoteTestCase, expectedProjectId: args.projectId });
 
-    const runStartedAt = Date.now();
     const toolResult = await localQa.executeTool(
       localQa.EXECUTE_TEST_GENERATION_TOOL_NAME,
       {
@@ -101,7 +100,7 @@ export async function runLocalGenerateAsync(params: {
         status: LocalGenerateStatus.Error,
         runId: null,
         actionScriptId: null,
-        uploadedRunId: null,
+        testScriptId: null,
         error: toErrorHeadline(toolResult.content),
       });
     }
@@ -109,16 +108,14 @@ export async function runLocalGenerateAsync(params: {
     const storedRun = localQa.getRunResultStorageService().getRunResult(generationRun.id);
     const status = resolveStoredStatus(storedRun?.status ?? generationRun.status);
     const actionScriptId = storedRun?.cloudActionScriptId ?? null;
-    const uploadedRunId = actionScriptId
-      ? await findUploadedRunIdAsync({ testCaseId: args.testCaseId, runStartedAt: runStartedAt, correlationId: correlationId })
-      : null;
+    const testScriptId = storedRun?.cloudTestScriptId ?? null;
     const failureMessage = storedRun?.errorMessage ?? generationRun.errorMessage;
 
     return buildResult({
       status: status,
       runId: generationRun.id,
       actionScriptId: actionScriptId,
-      uploadedRunId: uploadedRunId,
+      testScriptId: testScriptId,
       error: status === LocalGenerateStatus.Passed ? null : toErrorHeadline(failureMessage ?? `Run ended ${status}.`),
     });
   } catch (error) {
@@ -126,7 +123,7 @@ export async function runLocalGenerateAsync(params: {
       status: LocalGenerateStatus.Error,
       runId: null,
       actionScriptId: null,
-      uploadedRunId: null,
+      testScriptId: null,
       error: toErrorHeadline(toErrorMessage(error)),
     });
   } finally {
@@ -142,7 +139,7 @@ function renderLocalGenerateText(generationOutcome: ILocalGenerateResult): strin
     `  Test case:     ${generationOutcome.testCaseId}`,
     `  Local run:     ${generationOutcome.runId ?? "none"}`,
     `  Action script: ${generationOutcome.actionScriptId ?? "not published"}`,
-    `  Cloud run:     ${generationOutcome.uploadedRunId ?? "unknown"}`,
+    `  Test script:   ${generationOutcome.testScriptId ?? "not uploaded"}`,
     `  Duration:      ${generationOutcome.durationMs}ms`,
     ...(generationOutcome.error ? [`  Error:         ${generationOutcome.error}`] : []),
   ].join("\n");

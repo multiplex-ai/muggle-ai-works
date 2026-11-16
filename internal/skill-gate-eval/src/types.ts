@@ -149,6 +149,8 @@ export interface GatePromptInputs {
   skillBody: string;
   /** The gate-under-test's contract, or "" when the skill has none on disk. */
   gateBody: string;
+  /** The contract of every other gate the scenario sets to `ask`, in preference order. */
+  askGateBodies: string[];
   /** The scenario's preferences as `key=value` pairs, space-separated. */
   prefs: string;
   /** The scenario's other session-context lines, newline-joined. */

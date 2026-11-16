@@ -97,5 +97,8 @@ export const CODEX_UNUSED_FEATURES = ["view_image", "multi_agent", "image_genera
 /** The event the Codex harness adds to a rep's stream where a turn ends: its closing message and the scripted reply, if any. */
 export const CODEX_TURN_END_EVENT = "gate_eval.turn_end";
 
+/** One numbered option of a question asked in prose: `1. Sign up flow`, `2) **Show full list**`. */
+export const NUMBERED_OPTION_LINE = /^\s*\d+[.)]\s+\S/;
+
 /** The last line of a rep's transcript: the verdict it was judged to. */
 export const TRANSCRIPT_VERDICT_EVENT = "gate_eval.verdict";

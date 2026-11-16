@@ -45,8 +45,9 @@ import {
   CODEX_MAX_RESUMES,
   CODEX_TURN_END_EVENT,
   CODEX_UNUSED_FEATURES,
+  NUMBERED_OPTION_LINE,
 } from "./constants.js";
-import { readGatePromptInputs } from "./prompt-inputs.js";
+import { askGateContractsSection, readGatePromptInputs } from "./prompt-inputs.js";
 import { loadFixtures } from "./scenario.js";
 import type {
   AskQuestionRecord,
@@ -105,7 +106,7 @@ export function codexQuestionGuidance(skillsDir: string): string {
  *     …
  */
 export function buildCodexInstructions(opts: Pick<RunOptions, "skillsDir" | "scenarioFile" | "scenario">): string {
-  const { skillBody, gateBody, prefs, extraContext } = readGatePromptInputs(opts);
+  const { skillBody, gateBody, askGateBodies, prefs, extraContext } = readGatePromptInputs(opts);
   return [
     skillBody,
     "",
@@ -121,6 +122,7 @@ export function buildCodexInstructions(opts: Pick<RunOptions, "skillsDir" | "sce
     "using the question text verbatim.",
     "",
     gateBody,
+    askGateContractsSection(askGateBodies),
     "",
     "---",
     "# ENVIRONMENT NOTE",
@@ -156,14 +158,26 @@ export function prepareCodexGateHome(codexHome: string, fixtures: Fixtures): voi
 }
 
 /**
+ * Whether a closing message without a question mark still asks for `answer`:
+ * it lists `answer` as a numbered option — the shape host-tool-equivalents.md
+ * tells Codex to ask in, which Codex often heads with "Pick the use case:"
+ * rather than a question.
+ */
+function isOfferingAsOption(message: string, answer: string): boolean {
+  return message.split(/\r?\n/).some((line) => NUMBERED_OPTION_LINE.test(line) && line.includes(answer));
+}
+
+/**
  * The scripted pick for a turn that ended on a question, or undefined when it
  * did not end on one the scenario knows. A closing message counts as a
- * question only when it asks one, so a summary that names a use case does not
- * read as the use-case picker.
+ * question only when it asks one — a question mark, or numbered options that
+ * offer the scripted pick — so a summary that names a use case does not read
+ * as the use-case picker.
  */
-function closingQuestion(message: string, scenario: Scenario, sequence: number): AskQuestionRecord | undefined {
-  if (!message.includes("?")) return undefined;
+export function closingQuestion(message: string, scenario: Scenario, sequence: number): AskQuestionRecord | undefined {
   const answer = matchAskQuestionAnswer(message, scenario);
+  const isAsking = message.includes("?") || (answer !== null && isOfferingAsOption(message, answer));
+  if (!isAsking) return undefined;
   if (answer === null && !isGateQuestion(message, scenario)) return undefined;
   return { question: message, answer: answer, sequence: sequence };
 }

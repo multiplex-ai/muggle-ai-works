@@ -22,7 +22,7 @@ import {
 
 import { ASK_QUESTION_TOOL } from "./constants.js";
 import { buildMockMcpServer } from "./mock-mcp.js";
-import { readGatePromptInputs } from "./prompt-inputs.js";
+import { askGateContractsSection, readGatePromptInputs } from "./prompt-inputs.js";
 import { loadFixtures } from "./scenario.js";
 import type {
   AskQuestionRecord,
@@ -57,7 +57,7 @@ const PRODUCTION_MUGGLE_PREFIX = "mcp__plugin_muggle_muggle__";
  *     Muggle Test Last Host: http://localhost:3000
  */
 export function buildSystemPrompt(opts: RunOptions): string {
-  const { skillBody, gateBody, prefs, extraContext } = readGatePromptInputs(opts);
+  const { skillBody, gateBody, askGateBodies, prefs, extraContext } = readGatePromptInputs(opts);
   return [
     skillBody,
     "",
@@ -73,6 +73,7 @@ export function buildSystemPrompt(opts: RunOptions): string {
     "AskUserQuestion using the question text verbatim.",
     "",
     gateBody,
+    askGateContractsSection(askGateBodies),
     "",
     "---",
     "# ENVIRONMENT NOTE",

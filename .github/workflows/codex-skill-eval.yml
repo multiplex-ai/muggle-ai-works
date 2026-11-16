@@ -549,17 +549,25 @@ jobs:
             echo "MUGGLE_CODEX_SANDBOX=danger-full-access" >> "$GITHUB_ENV"
           fi
 
-      - name: Run agent-gate evals under Codex (every scenario file)
+      - name: Run agent-gate evals under Codex (every agent scenario file)
         if: steps.auth.outputs.ready == 'true'
         run: |
           set -euo pipefail
           shopt -s nullglob
           fail=0
           total=0
+          skill_suites=()
           for scenarios in internal/agent-gate-eval/scenarios/*.json; do
             case "$scenarios" in *.results.json) continue ;; esac
-            total=$((total + 1))
             agent="$(basename "$scenarios" .json)"
+            # The Codex harness runs agent targets only; skill suites run under
+            # Claude in skill-eval.yml's muggle-do-eval, so name them, never fail them.
+            kind="$(node -e "process.stdout.write(require(require('path').resolve(process.argv[1])).target.kind)" "$scenarios")"
+            if [ "$kind" != "agent" ]; then
+              skill_suites+=("$agent")
+              continue
+            fi
+            total=$((total + 1))
             echo "::group::agent=$agent runs=$AGENT_RUNS"
             if pnpm exec tsx internal/agent-gate-eval/src/run.ts --host codex \
                  --agent "$agent" --runs "$AGENT_RUNS" \
@@ -571,8 +579,11 @@ jobs:
             fi
             echo "::endgroup::"
           done
+          if [ "${#skill_suites[@]}" -gt 0 ]; then
+            echo "::notice title=Skill suites not run under Codex::${skill_suites[*]} target skills, which the Codex harness cannot run; they run under Claude in Skill Evals (muggle-do-eval)."
+          fi
           if [ "$total" -eq 0 ]; then
-            echo "No scenario files under internal/agent-gate-eval/scenarios" >&2
+            echo "No agent scenario files under internal/agent-gate-eval/scenarios" >&2
             exit 1
           fi
           exit "$fail"

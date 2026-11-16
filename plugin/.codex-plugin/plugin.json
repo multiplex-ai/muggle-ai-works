@@ -1,6 +1,6 @@
 {
   "name": "muggle",
-  "version": "5.36.0",
+  "version": "5.38.0",
   "description": "Acceptance test agent for coding agents: real-browser tests, with screenshots on the PR.",
   "author": {
     "name": "Muggle AI",

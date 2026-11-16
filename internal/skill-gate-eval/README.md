@@ -61,7 +61,11 @@ bounded pool — `--concurrency N` (or `SKILL_GATE_EVAL_CONCURRENCY`), default 4
 to 3× with exponential backoff, and the cooldown is shared across the pool so
 one 429 pauses new starts for every worker instead of compounding. `--verbose`
 traces interleave under concurrency; each line is prefixed with its
-scenario/rep label.
+scenario/rep label. `--transcripts-dir <dir>` writes each rep's full event
+stream, then its verdict, to `<dir>/<scenario>.rep<n>.jsonl`; under Codex each
+turn end adds a `gate_eval.turn_end` event with the closing message and the
+scripted reply it got, or `null` where the run stopped. CI uploads them as the
+`codex-gate-transcripts` artifact.
 
 **Usage limits:** a rep stopped by a spent session, weekly or org spend limit is
 not retried and counts as no result. The scenario is judged on its other reps,

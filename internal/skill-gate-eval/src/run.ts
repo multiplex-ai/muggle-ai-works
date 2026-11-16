@@ -16,6 +16,7 @@
  *     [--host codex]              # run the reps in the Codex CLI (codex-harness.ts)
  *     [--codex-home <dir>]        # under Codex: a Codex home the eval may own (default: a fresh one)
  *     [--codex-config <key=value>] # under Codex: a config override for every run (repeatable)
+ *     [--transcripts-dir <dir>]   # write each rep's full event stream and verdict to <dir>/<scenario>.rep<n>.jsonl
  *
  * Under Codex the results go to results.codex.json, beside Claude's results.json.
  */
@@ -41,6 +42,7 @@ import {
 import { runScenarioOnce } from "./harness.js";
 import { loadFixtures, loadScenarioFile } from "./scenario.js";
 import { formatNoResultNote, summarizeJudgedReps } from "./scenario-report.js";
+import { openRepTranscript, transcriptPathFor } from "./transcript.js";
 import { EvalHost } from "./types.js";
 import type { CliArgs, Fixtures, RunOptions, RunVerdict, ScenarioReport } from "./types.js";
 import { usageLimitVerdict } from "./usage-limit.js";
@@ -128,6 +130,7 @@ function parseArgs(argv: string[]): RunCliArgs {
     concurrency: concurrency,
     scenarioFilter: out.scenario,
     verbose: flags.has("verbose"),
+    transcriptsDir: out["transcripts-dir"],
   };
 }
 
@@ -198,6 +201,16 @@ async function main(): Promise<void> {
       return async (): Promise<{ scenarioIndex: number; verdict: RunVerdict }> => {
         // eslint-disable-next-line no-console
         console.error(`[skill-gate-eval] running ${repLabel}…`);
+        const transcript = args.transcriptsDir
+          ? openRepTranscript(transcriptPathFor(path.resolve(args.transcriptsDir), scenario.name, repIndex + 1))
+          : undefined;
+        const onRepEvent =
+          args.verbose || transcript
+            ? (event: unknown): void => {
+                transcript?.appendEvent(event);
+                if (args.verbose) process.stderr.write(`[sdk ${repLabel}] ${oneLine(event)}\n`);
+              }
+            : undefined;
         let verdict: RunVerdict;
         try {
           verdict = await withLoginRotation(
@@ -212,9 +225,7 @@ async function main(): Promise<void> {
                       skillsDir: path.resolve(args.skillsDir),
                       model: args.model,
                     },
-                    args.verbose
-                      ? (msg) => process.stderr.write(`[sdk ${repLabel}] ${oneLine(msg)}\n`)
-                      : undefined,
+                    onRepEvent,
                   ),
                 {
                   gate: throttleGate,
@@ -240,6 +251,7 @@ async function main(): Promise<void> {
           // eslint-disable-next-line no-console
           console.error(`[skill-gate-eval] ${repLabel}: no result (usage limit): ${oneLine(String(error))}`);
         }
+        transcript?.appendVerdict(verdict);
         if (args.verbose) {
           // eslint-disable-next-line no-console
           console.error(JSON.stringify(verdict, null, 2));

@@ -314,6 +314,8 @@ jobs:
       MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
       # One Codex home per gate, which the harness owns; the run step makes it.
       CODEX_GATE_HOMES: ${{ github.workspace }}/.codex-gate-homes
+      # Each rep's Codex event stream and verdict, uploaded so a failing rep can be read.
+      CODEX_GATE_TRANSCRIPTS: ${{ github.workspace }}/.codex-gate-transcripts
     steps:
       - name: Checkout works
         uses: actions/checkout@v6
@@ -422,6 +424,7 @@ jobs:
                  --gate "$gate" --skill "$skill" --runs "$GATE_RUNS" \
                  --concurrency "$GATE_CONCURRENCY" \
                  --codex-home "$CODEX_GATE_HOMES/$gate" \
+                 --transcripts-dir "$CODEX_GATE_TRANSCRIPTS/$gate" \
                  --brain-dir "$MUGGLE_BRAIN_DIR"; then
               echo "PASS $gate"
             else
@@ -435,6 +438,15 @@ jobs:
             exit 1
           fi
           exit "$fail"
+
+      - name: Upload gate transcripts
+        if: always() && steps.brain.outputs.ready == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: codex-gate-transcripts
+          path: ${{ env.CODEX_GATE_TRANSCRIPTS }}
+          if-no-files-found: warn
+          include-hidden-files: true
 
       - name: Report gate results
         if: always() && steps.auth.outputs.ready == 'true'

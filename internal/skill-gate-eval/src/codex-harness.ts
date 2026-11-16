@@ -43,6 +43,7 @@ import {
   CODEX_GATE_ANSWERS_ENV,
   CODEX_GATE_TRACE_ENV,
   CODEX_MAX_RESUMES,
+  CODEX_TURN_END_EVENT,
   CODEX_UNUSED_FEATURES,
 } from "./constants.js";
 import { readGatePromptInputs } from "./prompt-inputs.js";
@@ -247,7 +248,9 @@ export async function runScenarioOnceInCodex(
     const thread = threadIdOf(stream);
     for (let resumes = 0; resumes < CODEX_MAX_RESUMES; resumes++) {
       // A turn's closing question comes after every call that turn traced and before the next turn's first.
-      const question = closingQuestion(closingMessageOf(stream), opts.scenario, traced - 0.5);
+      const closingMessage = closingMessageOf(stream);
+      const question = closingQuestion(closingMessage, opts.scenario, traced - 0.5);
+      onEvent?.({ type: CODEX_TURN_END_EVENT, closingMessage: closingMessage, reply: question?.answer ?? null });
       if (!question) break;
       askQuestions.push(question);
       if (question.answer === null || !thread) break;

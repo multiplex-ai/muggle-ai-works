@@ -15,6 +15,7 @@ import {
   runViewCommand,
   cleanupCommand,
   doctorCommand,
+  generateCommand,
   helpCommand,
   initCommand,
   llmSourceCommand,
@@ -251,6 +252,18 @@ function createProgram (): Command {
     .option("--show-ui", "Show the Studio window")
     .option("--json", "Print the report as one JSON line")
     .action(localScanCommand);
+
+  program
+    .command("generate")
+    .description("Generate a test script for one cloud test case; with --local the local Studio runs it and uploads the run")
+    .option("--local", "Run in the local Studio on the model source you chose (muggle llm-source); required for now")
+    .requiredOption("--project-id <id>", "Project the test case belongs to")
+    .requiredOption("--test-case-id <id>", "Test case to generate a script for")
+    .option("--light", "Run the prediction agent on the light (Sonnet) tier")
+    .option("--show-ui", "Show the Studio window (the showElectronBrowser preference can override)")
+    .option("--timeout-ms <n>", "Run time limit in milliseconds (default: the generation default)")
+    .option("--json", "Print the result as one JSON line")
+    .action(generateCommand);
 
   program
     .command("ci-install")

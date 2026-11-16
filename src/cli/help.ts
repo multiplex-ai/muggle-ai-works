@@ -128,6 +128,7 @@ export function getHelpGuidance(): string {
     "",
     `  ${colorize("Local Runs:", COLORS.bold)}`,
     `    ${cmd("muggle scan --local")}     Scan a site for use-case candidates in the local Studio`,
+    `    ${cmd("muggle generate --local")} Generate a test script in the local Studio and upload the run`,
     "",
     `  ${colorize("Inspecting Runs:", COLORS.bold)}`,
     `    ${cmd("muggle run-view")}         Show a run's steps beside the frames they produced`,

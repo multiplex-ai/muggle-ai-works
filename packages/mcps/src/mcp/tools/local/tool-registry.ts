@@ -58,6 +58,7 @@ import {
   LAST_HOST_FILE_NAME,
 } from "../../../shared/last-host.js";
 import { MUGGLE_HOME_DISPLAY_DIR } from "../../../shared/cwd-keyed-cache-constants.js";
+import { EXECUTE_TEST_GENERATION_TOOL_NAME } from "./tool-name-constants.js";
 import {
   cancelExecution,
   collectBugReportClientContext,
@@ -401,7 +402,7 @@ function formatRunViewUrlLine(runId: string): string {
 }
 
 const executeTestGenerationTool: ILocalMcpTool = {
-  name: "muggle-local-execute-test-generation",
+  name: EXECUTE_TEST_GENERATION_TOOL_NAME,
   description: `Generate an end-to-end (E2E) acceptance test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. ${TEST_CASE_LIMIT_GUIDANCE} Launches an Electron browser — the user's showElectronBrowser preference decides whether its window shows when set to always or never; under ask it defaults to a visible window and showUi: false runs it headless.`,
   inputSchema: ExecuteTestGenerationInputSchema,
   execute: async (ctx) => {

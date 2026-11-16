@@ -23,6 +23,7 @@ export {
   executeWebsiteScan,
   listActiveExecutions,
 } from "./execution-service.js";
+export type { ILocalRunResult as ILocalExecutionRunResult } from "./execution-service.js";
 
 export { DEFAULT_WEBSITE_SCAN_TIMEOUT_MS } from "./execution-timeout-constants.js";
 export { WebsiteScanExitEnum } from "./website-scan-types.js";

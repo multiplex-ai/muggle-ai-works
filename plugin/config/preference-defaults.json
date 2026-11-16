@@ -24,6 +24,7 @@
   "autoInstallWatchService": "ask",
   "reusePreparePlan": "always",
   "frontloadQuestions": "always",
+  "tasteProfileUpload": "ask",
   "watcherLifetime": "7d",
   "maxCatchUpRebases": "20"
 }

@@ -48,4 +48,6 @@ Write the findings to `~/.muggle-ai/muggle-do/sessions/<slug>/requirements.md`. 
 
 Then append this stage's marker to `iterations/<NNN>.md`, citing the file written and its criteria count.
 
+Record the approved request as a taste signal: `muggle-local-taste-signal-append` with `kind: "ApprovedRequest"`, `text` the goal and criteria, and the session's Muggle Test `projectId` when known. A failed append never blocks the stage.
+
 Do NOT ask the user questions. Make reasonable inferences and flag assumptions in Notes.

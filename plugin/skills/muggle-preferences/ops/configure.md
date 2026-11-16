@@ -33,6 +33,7 @@ For each option: label = key name, description = first paragraph of `preference-
 - `multiSelect: true`, `header: "Branch hygiene"` — `autoUseWorktree`, `autoRebase`, `autoCleanup`, `autoResolveConflicts`
 - `multiSelect: false`, `header: "CI check"` — `autoInstallCiWorkflow`. Options: `Always — add it to every repo Muggle works in` (`always`), `Ask in each repo` (`ask` — default), `Never` (`never`).
 - `multiSelect: false`, `header: "Muggle Watch"` — `autoInstallWatchService`. Options: `Always — install it now and refresh it on every upgrade` (`always`), `Ask me later` (`ask` — default), `Never` (`never`).
+- `multiSelect: false`, `header: "Taste profile"` — `tasteProfileUpload`. Options: `Always — upload it whenever it is rebuilt` (`always`), `Ask me each time` (`ask` — default), `Never — keep it on this machine` (`never`).
 - `multiSelect: false`, `header: "E2E acceptance"` — `autoE2ETest`. Options: `Always run Stage 6 at the end` (`always` — default), `Ask each cycle` (`ask`). No `never` option.
 - `multiSelect: false`, `header: "Default mode"` — `defaultExecutionMode`. Options: `Local — run on my computer` (`local`), `Remote — run in the Muggle Test cloud` (`remote`), `Ask each time` (don't change).
 - `multiSelect: false`, `header: "Questions"` — `frontloadQuestions`. Options: `All up front — then run unattended` (`always` — default), `As each one comes up` (`never`). No `ask` option.

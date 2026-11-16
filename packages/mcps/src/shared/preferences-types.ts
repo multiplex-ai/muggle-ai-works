@@ -60,6 +60,8 @@ export enum PreferenceKey {
   ReusePreparePlan = "reusePreparePlan",
   /** Ask every question a run can foresee up front, and never block mid-run on a new one. */
   FrontloadQuestions = "frontloadQuestions",
+  /** Upload the distilled taste profile so Muggle Test runs use it as guidance. */
+  TasteProfileUpload = "tasteProfileUpload",
 }
 
 /**

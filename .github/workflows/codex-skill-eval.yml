@@ -10,7 +10,10 @@ name: Codex Skill Evals
 # Not a required check: Codex runs on OpenAI's models, on the OPENAI_API_KEY
 # repo secret (billed per use) or, failing that, the CODEX_AUTH_JSON secret (a
 # `codex login` auth.json, on a ChatGPT subscription); with neither, each job
-# says so and passes. Scoped like skill-eval.yml: on a PR a job runs only when
+# says so and passes. CODEX_AUTH_JSON_2 through _5 add further subscription
+# logins: the gate and agent evals start on the first and, when a rep hits a
+# login's usage limit, swap in the next and rerun the rep; the routing eval
+# runs on the first only. Scoped like skill-eval.yml: on a PR a job runs only when
 # the change can move its result, the `run-full-eval` label forces the full
 # sweep, and the nightly and on-demand runs are always full.
 on:
@@ -133,6 +136,10 @@ jobs:
         with:
           api-key: ${{ secrets.OPENAI_API_KEY }}
           subscription-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
+          subscription-auth-json-2: ${{ secrets.CODEX_AUTH_JSON_2 }}
+          subscription-auth-json-3: ${{ secrets.CODEX_AUTH_JSON_3 }}
+          subscription-auth-json-4: ${{ secrets.CODEX_AUTH_JSON_4 }}
+          subscription-auth-json-5: ${{ secrets.CODEX_AUTH_JSON_5 }}
 
       - name: Skip when no Codex credential is set
         if: steps.scope.outputs.should_run == 'true' && steps.auth.outputs.ready != 'true'
@@ -348,6 +355,10 @@ jobs:
         with:
           api-key: ${{ secrets.OPENAI_API_KEY }}
           subscription-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
+          subscription-auth-json-2: ${{ secrets.CODEX_AUTH_JSON_2 }}
+          subscription-auth-json-3: ${{ secrets.CODEX_AUTH_JSON_3 }}
+          subscription-auth-json-4: ${{ secrets.CODEX_AUTH_JSON_4 }}
+          subscription-auth-json-5: ${{ secrets.CODEX_AUTH_JSON_5 }}
 
       - name: Skip when no Codex credential is set
         if: steps.scope.outputs.should_run == 'true' && steps.auth.outputs.ready != 'true'
@@ -492,6 +503,10 @@ jobs:
         with:
           api-key: ${{ secrets.OPENAI_API_KEY }}
           subscription-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
+          subscription-auth-json-2: ${{ secrets.CODEX_AUTH_JSON_2 }}
+          subscription-auth-json-3: ${{ secrets.CODEX_AUTH_JSON_3 }}
+          subscription-auth-json-4: ${{ secrets.CODEX_AUTH_JSON_4 }}
+          subscription-auth-json-5: ${{ secrets.CODEX_AUTH_JSON_5 }}
 
       - name: Skip when no Codex credential is set
         if: steps.scope.outputs.should_run == 'true' && steps.auth.outputs.ready != 'true'

@@ -34,6 +34,7 @@ import {
   ThrottleGate,
   withThrottleRetry,
 } from "../../skill-gate-eval/src/concurrency.js";
+import { CodexLoginPool, withLoginRotation } from "../../skill-gate-eval/src/codex-login-pool.js";
 import { PASS_THRESHOLD } from "../../skill-gate-eval/src/constants.js";
 import { formatNoResultNote } from "../../skill-gate-eval/src/scenario-report.js";
 import { EvalHost } from "../../skill-gate-eval/src/types.js";
@@ -125,7 +126,11 @@ async function main(): Promise<void> {
     args.host === EvalHost.Codex
       ? path.resolve(args.codexHome ?? fs.mkdtempSync(path.join(os.tmpdir(), "muggle-agent-eval-codex-")))
       : "";
-  if (args.host === EvalHost.Codex) prepareCodexAgentHome(codexHome);
+  const loginPool = args.host === EvalHost.Codex ? CodexLoginPool.fromEnv(codexHome) : null;
+  if (args.host === EvalHost.Codex) {
+    prepareCodexAgentHome(codexHome);
+    loginPool?.installActiveLogin();
+  }
   const runRep = (
     definition: TargetDefinition,
     scenario: AgentScenario,
@@ -159,20 +164,31 @@ async function main(): Promise<void> {
           // survive it. Throttle errors are retried upstream, never counted.
           let verdict: AgentRunVerdict;
           try {
-            verdict = await withThrottleRetry(
+            verdict = await withLoginRotation(
               () =>
-                runRep(
-                  plannedSuite.definition,
-                  scenario,
-                  args.verbose
-                    ? (msg) => process.stderr.write(`[sdk ${repLabel}] ${oneLine(msg)}\n`)
-                    : undefined,
+                withThrottleRetry(
+                  () =>
+                    runRep(
+                      plannedSuite.definition,
+                      scenario,
+                      args.verbose
+                        ? (msg) => process.stderr.write(`[sdk ${repLabel}] ${oneLine(msg)}\n`)
+                        : undefined,
+                    ),
+                  {
+                    gate: throttleGate,
+                    onThrottle: (attempt, backoffMs, error) => {
+                      console.error(
+                        `[agent-gate-eval] ${repLabel}: rate-limited (attempt ${attempt}) — backing off ${Math.round(backoffMs / 1000)}s: ${oneLine(String(error))}`,
+                      );
+                    },
+                  },
                 ),
               {
-                gate: throttleGate,
-                onThrottle: (attempt, backoffMs, error) => {
+                pool: loginPool,
+                onRotate: (exhaustedLoginIndex, nextLoginIndex) => {
                   console.error(
-                    `[agent-gate-eval] ${repLabel}: rate-limited (attempt ${attempt}) — backing off ${Math.round(backoffMs / 1000)}s: ${oneLine(String(error))}`,
+                    `[agent-gate-eval] ${repLabel}: Codex login ${exhaustedLoginIndex} hit its usage limit — retrying on login ${nextLoginIndex}`,
                   );
                 },
               },

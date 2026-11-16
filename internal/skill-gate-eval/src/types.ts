@@ -227,6 +227,24 @@ export interface ThrottleRetryOptions {
   onThrottle?: (attempt: number, backoffMs: number, error: unknown) => void;
 }
 
+/** The pool login swaps a usage-limited rep triggers, as `withLoginRotation` needs them. */
+export interface CodexLoginPoolLike {
+  /** The lowest pool login not yet exhausted, or null when every one is. */
+  activeLoginIndex(): number | null;
+  /**
+   * Mark `exhaustedLoginIndex` exhausted and install the next usable login.
+   *
+   * @returns true when a usable login is now installed, so the rep can be retried.
+   */
+  rotateAfterUsageLimit(exhaustedLoginIndex: number): boolean;
+}
+
+export interface LoginRotationOptions {
+  /** Null under API-key auth or a single unpooled login: a usage limit then stays a no-result rep. */
+  pool: CodexLoginPoolLike | null;
+  onRotate?: (exhaustedLoginIndex: number, nextLoginIndex: number, error: unknown) => void;
+}
+
 export interface ScenarioReport {
   name: string;
   runs: number;

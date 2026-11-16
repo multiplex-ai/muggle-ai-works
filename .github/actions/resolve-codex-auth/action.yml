@@ -1,9 +1,11 @@
 name: Resolve Codex auth
 description: >-
   Pick the credential the Codex evals run on: an OpenAI API key, exported as
-  CODEX_API_KEY, or a ChatGPT-subscription login, written to a private
-  auth.json whose path is exported as CODEX_AUTH_FILE for seed-home.sh to copy
-  into each Codex home. Neither set reports not ready, so the job skips.
+  CODEX_API_KEY, or up to five ChatGPT-subscription logins, written in order to
+  a private pool directory exported as CODEX_AUTH_POOL_DIR. The first login's
+  path is exported as CODEX_AUTH_FILE for seed-home.sh to copy into each Codex
+  home; the eval harnesses swap in the next login when one runs out of usage.
+  Neither set reports not ready, so the job skips.
 
 inputs:
   api-key:
@@ -16,6 +18,22 @@ inputs:
       CODEX_AUTH_JSON secret. Used only when no API key is set.
     required: false
     default: ""
+  subscription-auth-json-2:
+    description: A further login, from CODEX_AUTH_JSON_2, used once the earlier ones run out.
+    required: false
+    default: ""
+  subscription-auth-json-3:
+    description: A further login, from CODEX_AUTH_JSON_3.
+    required: false
+    default: ""
+  subscription-auth-json-4:
+    description: A further login, from CODEX_AUTH_JSON_4.
+    required: false
+    default: ""
+  subscription-auth-json-5:
+    description: A further login, from CODEX_AUTH_JSON_5.
+    required: false
+    default: ""
 
 outputs:
   ready:
@@ -24,6 +42,9 @@ outputs:
   method:
     description: "`api-key`, `subscription`, or empty when not ready."
     value: ${{ steps.resolve.outputs.method }}
+  login-count:
+    description: How many subscription logins the pool holds; 0 under an API key.
+    value: ${{ steps.resolve.outputs.login-count }}
 
 runs:
   using: composite
@@ -32,28 +53,46 @@ runs:
       shell: bash
       env:
         OPENAI_API_KEY_INPUT: ${{ inputs.api-key }}
-        SUBSCRIPTION_AUTH_JSON: ${{ inputs.subscription-auth-json }}
+        CODEX_AUTH_JSON: ${{ inputs.subscription-auth-json }}
+        CODEX_AUTH_JSON_2: ${{ inputs.subscription-auth-json-2 }}
+        CODEX_AUTH_JSON_3: ${{ inputs.subscription-auth-json-3 }}
+        CODEX_AUTH_JSON_4: ${{ inputs.subscription-auth-json-4 }}
+        CODEX_AUTH_JSON_5: ${{ inputs.subscription-auth-json-5 }}
       run: |
         set -euo pipefail
         if [ -n "$OPENAI_API_KEY_INPUT" ]; then
           echo "CODEX_API_KEY=$OPENAI_API_KEY_INPUT" >> "$GITHUB_ENV"
           echo "ready=true" >> "$GITHUB_OUTPUT"
           echo "method=api-key" >> "$GITHUB_OUTPUT"
+          echo "login-count=0" >> "$GITHUB_OUTPUT"
           echo "Codex auth: OpenAI API key."
-        elif [ -n "$SUBSCRIPTION_AUTH_JSON" ]; then
-          auth_file="${RUNNER_TEMP:?}/codex-auth.json"
-          (umask 077 && printf '%s' "$SUBSCRIPTION_AUTH_JSON" > "$auth_file")
+          exit 0
+        fi
+        pool_dir="${RUNNER_TEMP:?}/codex-auth-pool"
+        login_count=0
+        for secret_name in CODEX_AUTH_JSON CODEX_AUTH_JSON_2 CODEX_AUTH_JSON_3 CODEX_AUTH_JSON_4 CODEX_AUTH_JSON_5; do
+          login_json="${!secret_name:-}"
+          [ -n "$login_json" ] || continue
+          mkdir -p "$pool_dir"
+          login_file="$pool_dir/$login_count.json"
+          (umask 077 && printf '%s' "$login_json" > "$login_file")
           # A malformed paste would otherwise surface as an opaque login failure
           # inside every eval session.
-          if ! node -e 'const a = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); if (!a.tokens || !a.tokens.refresh_token) process.exit(1)' "$auth_file"; then
-            echo "::error title=CODEX_AUTH_JSON unusable::The secret is not a codex login auth.json with tokens. Re-upload it from ~/.codex/auth.json after \`codex login\`." >&2
+          if ! node -e 'const a = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); if (!a.tokens || !a.tokens.refresh_token) process.exit(1)' "$login_file"; then
+            echo "::error title=$secret_name unusable::The secret is not a codex login auth.json with tokens. Re-upload it from ~/.codex/auth.json after \`codex login\`." >&2
             exit 1
           fi
-          echo "CODEX_AUTH_FILE=$auth_file" >> "$GITHUB_ENV"
-          echo "ready=true" >> "$GITHUB_OUTPUT"
-          echo "method=subscription" >> "$GITHUB_OUTPUT"
-          echo "Codex auth: ChatGPT subscription login."
-        else
+          login_count=$((login_count + 1))
+        done
+        if [ "$login_count" -eq 0 ]; then
           echo "ready=false" >> "$GITHUB_OUTPUT"
           echo "method=" >> "$GITHUB_OUTPUT"
+          echo "login-count=0" >> "$GITHUB_OUTPUT"
+          exit 0
         fi
+        echo "CODEX_AUTH_FILE=$pool_dir/0.json" >> "$GITHUB_ENV"
+        echo "CODEX_AUTH_POOL_DIR=$pool_dir" >> "$GITHUB_ENV"
+        echo "ready=true" >> "$GITHUB_OUTPUT"
+        echo "method=subscription" >> "$GITHUB_OUTPUT"
+        echo "login-count=$login_count" >> "$GITHUB_OUTPUT"
+        echo "Codex auth: $login_count ChatGPT subscription login(s), each swapped in as the one before runs out."

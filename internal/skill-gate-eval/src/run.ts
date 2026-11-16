@@ -25,6 +25,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import { prepareCodexGateHome, runScenarioOnceInCodex } from "./codex-harness.js";
+import { CodexLoginPool, withLoginRotation } from "./codex-login-pool.js";
 import {
   runWithConcurrencyLimit,
   ThrottleGate,
@@ -75,15 +76,15 @@ function parseArgs(argv: string[]): RunCliArgs {
   const flags = new Set<string>();
   const codexConfig: string[] = [];
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith("--")) continue;
-    const key = a.slice(2);
-    const val = argv[i + 1];
-    if (val === undefined || val.startsWith("--")) {
-      flags.add(key);
+    const argument = argv[i];
+    if (!argument.startsWith("--")) continue;
+    const flagName = argument.slice(2);
+    const flagValue = argv[i + 1];
+    if (flagValue === undefined || flagValue.startsWith("--")) {
+      flags.add(flagName);
     } else {
-      if (key === "codex-config") codexConfig.push(val);
-      else out[key] = val;
+      if (flagName === "codex-config") codexConfig.push(flagValue);
+      else out[flagName] = flagValue;
       i++;
     }
   }
@@ -167,11 +168,13 @@ async function main(): Promise<void> {
     args.host === EvalHost.Codex
       ? (args.codexHome ?? fs.mkdtempSync(path.join(os.tmpdir(), "muggle-gate-eval-codex-")))
       : "";
+  const loginPool = args.host === EvalHost.Codex ? CodexLoginPool.fromEnv(path.resolve(codexHome)) : null;
   if (args.host === EvalHost.Codex) {
     prepareCodexGateHome(
       path.resolve(codexHome),
       loadFixtures(scenarioFilePath, scenarioFile.fixturesPath) as Fixtures,
     );
+    loginPool?.installActiveLogin();
   }
   const runRep = (runOptions: RunOptions, onEvent?: (event: unknown) => void): Promise<RunVerdict> =>
     args.host === EvalHost.Codex
@@ -197,26 +200,37 @@ async function main(): Promise<void> {
         console.error(`[skill-gate-eval] running ${repLabel}…`);
         let verdict: RunVerdict;
         try {
-          verdict = await withThrottleRetry(
+          verdict = await withLoginRotation(
             () =>
-              runRep(
+              withThrottleRetry(
+                () =>
+                  runRep(
+                    {
+                      scenarioFile: scenarioFile,
+                      scenarioFilePath: scenarioFilePath,
+                      scenario: scenario,
+                      skillsDir: path.resolve(args.skillsDir),
+                      model: args.model,
+                    },
+                    args.verbose
+                      ? (msg) => process.stderr.write(`[sdk ${repLabel}] ${oneLine(msg)}\n`)
+                      : undefined,
+                  ),
                 {
-                  scenarioFile: scenarioFile,
-                  scenarioFilePath: scenarioFilePath,
-                  scenario: scenario,
-                  skillsDir: path.resolve(args.skillsDir),
-                  model: args.model,
+                  gate: throttleGate,
+                  onThrottle: (attempt, backoffMs, error) => {
+                    // eslint-disable-next-line no-console
+                    console.error(
+                      `[skill-gate-eval] ${repLabel}: rate-limited (attempt ${attempt}) — backing off ${Math.round(backoffMs / 1000)}s: ${oneLine(String(error))}`,
+                    );
+                  },
                 },
-                args.verbose
-                  ? (msg) => process.stderr.write(`[sdk ${repLabel}] ${oneLine(msg)}\n`)
-                  : undefined,
               ),
             {
-              gate: throttleGate,
-              onThrottle: (attempt, backoffMs, error) => {
-                // eslint-disable-next-line no-console
+              pool: loginPool,
+              onRotate: (exhaustedLoginIndex, nextLoginIndex) => {
                 console.error(
-                  `[skill-gate-eval] ${repLabel}: rate-limited (attempt ${attempt}) — backing off ${Math.round(backoffMs / 1000)}s: ${oneLine(String(error))}`,
+                  `[skill-gate-eval] ${repLabel}: Codex login ${exhaustedLoginIndex} hit its usage limit — retrying on login ${nextLoginIndex}`,
                 );
               },
             },

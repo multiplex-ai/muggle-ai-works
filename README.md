@@ -148,6 +148,7 @@ Every skill has a short alias. Both spellings work in Claude Code. In Codex, men
 | `/muggle:muggle-pr-followup` | `/mprfollowup` | Watch a PR's reviews, CI, and base drift |
 | `/muggle:muggle-feedback` | `/mfeedback` | Flag a generated script or step as wrong |
 | `/muggle:muggle-bug-report` | `/mbugreport` | Report a bug in Muggle AI and follow the ticket |
+| `/muggle:muggle-taste-profile` | `/mtaste` | Build, view, upload, or clear your taste profile |
 | `/muggle:muggle-preferences` | `/mprefs` | View, set, or reset preferences |
 | `/muggle:muggle-status` | `/mstatus` | Health check: runner, MCP server, auth |
 | `/muggle:muggle-repair` | `/mrepair` | Diagnose and fix a broken install |
@@ -361,7 +362,7 @@ Bulk-preview submissions return a `jobId` immediately. Poll `muggle-remote-bulk-
 
 **Reporting** — `muggle-remote-report-stats-summary-get`, `-cost-query`, `-final-generate` (PDF/HTML/Markdown), `-preferences-upsert`.
 
-**Administration** — `muggle-remote-prd-file-*` (upload, list and delete requirements docs), `muggle-remote-secret-*` (credentials for test environments, with `-secret-group-*` and `-secret-type-list`), `muggle-remote-wallet-*` (top-ups, payment methods, auto-topup), `muggle-remote-recommend-cicd-setup` / `-recommend-schedule`, `muggle-remote-user-feedback-*`, `muggle-remote-bug-report-*` (file, list, read and reply to bug reports about Muggle AI, with `muggle-local-bug-report-context-get` gathering the harness context they carry).
+**Administration** — `muggle-remote-prd-file-*` (upload, list and delete requirements docs), `muggle-remote-secret-*` (credentials for test environments, with `-secret-group-*` and `-secret-type-list`), `muggle-remote-wallet-*` (top-ups, payment methods, auto-topup), `muggle-remote-recommend-cicd-setup` / `-recommend-schedule`, `muggle-remote-user-feedback-*`, `muggle-remote-bug-report-*` (file, list, read and reply to bug reports about Muggle AI, with `muggle-local-bug-report-context-get` gathering the harness context they carry), `muggle-remote-taste-profile-*` (upload, get and delete the taste profile, kept locally by `muggle-local-taste-signal-*` and `muggle-local-taste-profile-*`).
 
 **Resources** — `muggle://docs/agents` ([AGENTS.md](AGENTS.md)) and `muggle://docs/llms` ([llms.txt](llms.txt)), read from the installed package through `resources/list` and `resources/read`.
 

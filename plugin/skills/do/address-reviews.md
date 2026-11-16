@@ -119,6 +119,7 @@ Invoke [`open-prs/update.md`](open-prs/update.md) (pass the PR URL + slug + exis
 #### 4g. Post per-comment inline replies
 
 Invoke [`per-comment-replies.md`](per-comment-replies.md) with the actionable reviews (`gitlab`: discussions), the actionable conversation comments, and the new SHA. One reply per comment, in its own thread, describing what was done for it; a conversation comment, which has no thread, gets one signed top-level comment that names it. The reply is the whole of it — neither provider's threads get resolved by the loop.
+After the replies, record each addressed comment as a taste signal: `muggle-local-taste-signal-append` with `kind: "ReviewComment"`, the comment's text, `classification` from Step 2, `sourceRef` the comment URL, and the session's Muggle Test `projectId` when known. A failed append never blocks the round.
 (The resolve-reminder runs once per round in Step 5.5 below — not only after a push — so a round that pushed nothing still nudges addressed-but-unresolved threads.)
 
 ### Step 5 — Update session state

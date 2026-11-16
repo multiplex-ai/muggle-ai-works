@@ -32,7 +32,7 @@ const CODEX_MENTIONABLE_NAME = /^[A-Za-z0-9_-]+$/;
 // descriptions round-robin — plugin skills are listed last — with no warning.
 // Muggle keeps to a share of it so Codex's own skills and the user's still fit.
 const CODEX_SKILLS_BUDGET_BYTES = 272_000 * 0.02 * 4;
-const MUGGLE_SHARE_OF_SKILLS_BUDGET = 0.62;
+const MUGGLE_SHARE_OF_SKILLS_BUDGET = 0.63;
 // openai.yaml interface limits; an over-long field is dropped with a warning nobody sees.
 const CODEX_MAX_DISPLAY_NAME_LENGTH = 64;
 const CODEX_MAX_SHORT_DESCRIPTION_LENGTH = 1024;

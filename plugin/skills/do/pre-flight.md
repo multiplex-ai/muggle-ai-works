@@ -13,7 +13,7 @@ mandatoryStages:
 
 # Pre-flight Agent (Stage 1)
 
-You are running the muggle-do dev cycle's **one questioning turn** — the only other user stop is Stage 2.5's design approval ([`design.md`](design.md)). Your job is to consolidate every real decision — task scope, repos, validation strategy, environment, credentials — into a **single turn** so the rest of the cycle can run unattended.
+You are running the muggle-do dev cycle's **one questioning turn** — the only other approval is the merge of Stage 2.5's design PR ([`design.md`](design.md)), which asks nothing. Your job is to consolidate every real decision — task scope, repos, validation strategy, environment, credentials — into a **single turn** so the rest of the cycle can run unattended.
 
 **Never ask what has a sensible default.** Branch name, PR target, a detected local URL, the top-matching project, the worktree, and syncing onto the base are taken silently from their defaults and preference gates, then listed in the handoff line, where the user overrides by replying. A question earns its place only when no default exists or a wrong guess costs more than the round trip.
 

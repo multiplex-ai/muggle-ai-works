@@ -19,7 +19,7 @@ Runs an autonomous dev cycle from requirements to PR. **Fire and review:** user 
 | :- | :---- | :--- |
 | 1 | Pre-flight (one questioning turn) | [`../do/pre-flight.md`](../do/pre-flight.md) |
 | 2 | Requirements | [`../do/requirements.md`](../do/requirements.md) |
-| 2.5 | Design — user approves before any code | [`../do/design.md`](../do/design.md) |
+| 2.5 | Design — a design PR; merging it approves the design and starts the build | [`../do/design.md`](../do/design.md) |
 | 3 | Build | [`../do/build.md`](../do/build.md) |
 | 4 | Impact analysis | [`../do/impact-analysis.md`](../do/impact-analysis.md) |
 | 5 | Unit tests | [`../do/unit-tests.md`](../do/unit-tests.md) |
@@ -32,6 +32,8 @@ Runs an autonomous dev cycle from requirements to PR. **Fire and review:** user 
 **The PR opens before E2E.** Stage 5.5 opens it as soon as unit tests pass; Stage 6 then runs against the PR's head, its progress showing on the PR, and Stage 7 settles the walkthrough with the result. The walkthrough check stays red until then.
 
 **Waves and streams.** A session's PRs are either a **wave** — one change split across repos — or a **stream** of independent changes, or both; [`../do/wave-or-stream.md`](../do/wave-or-stream.md) defines which is which, and pre-flight decides it once.
+
+**Design PRs.** A change that needs a design stops after Stage 2.5 with a `[DESIGN]` PR carrying the spec. Merging it is the approval: the merge's cleanup resumes the cycle at Stage 3; closing it unmerged rejects the design. See [`../do/design.md`](../do/design.md).
 
 **Multi-repo waves.** When a task's PRs need each other to work — one PR per repo — they form a wave: every repo's service starts from its branch, Stage 6 runs **one** E2E pass against the combined stack, and that same result is posted to every PR in the wave. See [`../do/wave-e2e.md`](../do/wave-e2e.md); pre-flight decides whether a cycle is a wave.
 
@@ -51,7 +53,7 @@ The pipeline table lists **pointers, not summaries**. Open each stage's file and
 **Per stage:** read the file → execute it → append one marker line to `iterations/<NNN>.md`, always in the form `Stage <N> done — <evidence>`, citing the evidence that file requires (jest exit code, E2E verdict + `runId`, screenshot path). The marker is the stage's last line, written after its notes, and carries the evidence itself: nothing between `done` and `—`, never a pointer such as `Stage 4 done (see below) —`. A stage is done only when its evidence is written, never on recollection.
 
 ### "Autonomous" / "without my intervention" collapses exactly one thing
-Best-effort the Stage-1 questionnaire and don't ask. It does **not** license skipping telemetry, session artifacts, requirements, the Stage-2.5 design approval, unit tests, E2E (`autoE2ETest` defaults to `always`), browser verification, the gate below, the Stage-7.5 repair loop, or the watcher hand-off. Stage 7.5 investigates and repairs unattended too; only its user decision is deferred — left open for the user and carried by the watcher, never waived on their behalf. Run the whole pipeline silently — never a shortcut.
+Best-effort the Stage-1 questionnaire and don't ask. It does **not** license skipping telemetry, session artifacts, requirements, the Stage-2.5 design PR, unit tests, E2E (`autoE2ETest` defaults to `always`), browser verification, the gate below, the Stage-7.5 repair loop, or the watcher hand-off. Stage 7.5 investigates and repairs unattended too; only its user decision is deferred — left open for the user and carried by the watcher, never waived on their behalf. Run the whole pipeline silently — never a shortcut.
 
 ### Definition of Done — gates before Stages 5.5 and 7
 Each line holds, or is waived by a one-line reason written into `state.md` (silence is not a waiver).
@@ -87,7 +89,7 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 
 | Preference | Gate |
 | :--------- | :--- |
-| `frontloadQuestions` | Every stage — `always` keeps Stage 1 the only questioning turn besides Stage 2.5's design approval, and Stage 7.5's decision open rather than asked; `never` lets a later stage ask when a question arises ([rule](../muggle-preferences/preference-gates/frontloadQuestions.md)) |
+| `frontloadQuestions` | Every stage — `always` keeps Stage 1 the only questioning turn, with Stage 2.5's design approval taken as a design-PR merge and Stage 7.5's decision open rather than asked; `never` lets a later stage ask when a question arises ([rule](../muggle-preferences/preference-gates/frontloadQuestions.md)) |
 | `autoE2ETest` | Stage 6 — run E2E every cycle (default `always`), or fold into pre-flight |
 | `autoResolveConflicts` | On rebase conflict — `always` resolves autonomously behind a verify-or-rollback gate, `never` aborts + escalates; resolve from the configured preference (don't assume a default) |
 | `autoRouteBuildToMuggleDo` | Front-door guardrail — route build/implement/fix requests through this pipeline (build delegated to superpowers); fired by the UserPromptSubmit guardrail, default `ask` |
@@ -109,7 +111,7 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 
 ## Guardrails
 
-- Stage 1, Stage 2.5's design approval, and Stage 7.5's user decision are the only user-facing forward stages. Stages 2 and 3–7 don't ask mid-cycle; blocker → pre-flight bug.
+- Stage 1 and Stage 7.5's user decision are the only user-facing forward stages; Stage 2.5 asks nothing — the user approves a design by merging its design PR, which resumes the cycle at Stage 3 (`/muggle-do resume slug=<slug>`). Stages 2 and 3–7 don't ask mid-cycle; blocker → pre-flight bug.
 - No code before a finalized design: Stage 3 starts only after Stage 2.5 records `Design: finalized` in `state.md`.
 - Same stage failing 3× → escalate.
 - Each route's entry file declares the stage files every run of that route opens, and a Stop gate holds the turn until they are read. A turn that ends before its route's last stage — a readiness halt, an escalation, a pause for a background run — records why with `echo "MUGGLE_STAGE_SKIP: <reason>"`.

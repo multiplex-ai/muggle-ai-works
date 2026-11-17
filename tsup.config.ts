@@ -41,6 +41,7 @@ export default defineConfig([
       "guardrails": "src/guardrails/cli.ts",
       "guard-run": "src/guard-run/cli.ts",
       "pr-watch-verdict": "src/pr-watch/cli.ts",
+      "watch-qos-record": "src/watch-qos/cli.ts",
     },
     format: ["esm"],
     target: "node22",

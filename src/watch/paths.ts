@@ -13,6 +13,7 @@ import {
   PR_WATCH_SLOTS_RELATIVE_PATH,
   WATCH_DIR_NAME,
 } from "./constants.js";
+import { WATCH_QOS_DIR_NAME } from "../watch-qos/constants.js";
 import type { WatchPaths } from "./types.js";
 
 /**
@@ -35,5 +36,6 @@ export function resolveWatchPaths(env: NodeJS.ProcessEnv = process.env): WatchPa
     claudeCredentialsFile: join(claudeConfigDir, CLAUDE_CREDENTIALS_FILE_NAME),
     codexSessionsDir: join(codexHome, "sessions"),
     muggleInstallLogFile: join(muggleDataDir, MUGGLE_INSTALL_LOG_FILE),
+    watchQosDir: join(muggleDataDir, WATCH_QOS_DIR_NAME),
   };
 }

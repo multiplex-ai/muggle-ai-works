@@ -1,4 +1,9 @@
-import { PreferenceKey, resolvePreferences } from "../../packages/mcps/src/index.js";
+import { getActiveRuntimeTarget, PreferenceKey, resolvePreferences } from "../../packages/mcps/src/index.js";
+import { WATCH_QOS_UPLOAD_SETTLE_MS } from "../watch-qos/constants.js";
+import { resolveWatchQosPaths } from "../watch-qos/ledger.js";
+import { createTelemetryWatchQosUploadDeps } from "../watch-qos/telemetry-upload.js";
+import { WatchQosUploadOutcome } from "../watch-qos/types.js";
+import { uploadWatchQosLedger } from "../watch-qos/uploader.js";
 import { renderWatchStatus } from "../watch/render.js";
 import {
   ReloadAction,
@@ -29,13 +34,35 @@ import type {
   WatchStatusFlags,
   WatchTickFlags,
 } from "./watch-types.js";
+import {
+  APPLICATIONINSIGHTS_CONNECTION_STRING,
+  TELEMETRY_ENVIRONMENT_BY_RUNTIME_TARGET,
+} from "./telemetry-environment-constants.js";
 
 function failWith(message: string): void {
   process.stderr.write(`muggle watch: ${message}\n`);
   process.exitCode = 1;
 }
 
-/** `muggle watch tick` — one pass of the standing watch; the scheduled task runs this. */
+// A started telemetry client keeps the process alive, so a tick that sent anything exits on its own once the client
+// has had time to export the batch.
+function uploadWatchQos(): void {
+  try {
+    const report = uploadWatchQosLedger(
+      createTelemetryWatchQosUploadDeps(
+        resolveWatchQosPaths(),
+        APPLICATIONINSIGHTS_CONNECTION_STRING,
+        TELEMETRY_ENVIRONMENT_BY_RUNTIME_TARGET[getActiveRuntimeTarget()],
+      ),
+    );
+    if (report.outcome !== WatchQosUploadOutcome.Sent) return;
+    setTimeout(() => process.exit(process.exitCode ?? 0), WATCH_QOS_UPLOAD_SETTLE_MS);
+  } catch {
+    // The upload retries on the next tick; it must never fail the tick itself.
+  }
+}
+
+/** `muggle watch tick` — one pass of the standing watch, then an upload of the watch quality ledger; the scheduled task runs this. */
 export function watchTickCommand(flags: WatchTickFlags): void {
   try {
     const snapshot = runWatchTick(
@@ -47,6 +74,7 @@ export function watchTickCommand(flags: WatchTickFlags): void {
         isMcpRecoverEnabled: flags.mcpRecover,
       }),
     );
+    uploadWatchQos();
     if (flags.json) {
       process.stdout.write(`${JSON.stringify(snapshot, null, 2)}\n`);
       return;

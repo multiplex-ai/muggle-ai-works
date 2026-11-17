@@ -86,6 +86,12 @@ import {
   watchFollowThroughDecision,
 } from "./watchFollowThrough.js";
 import {
+  recordCiCaughtAtTurnEndWatchQos,
+  recordPrOpenedWatchQos,
+  recordWatchMissedWatchQos,
+  recordWatchSkippedWatchQos,
+} from "./watchQos.js";
+import {
   resolvePreferenceValue,
   resolveUserPreferenceValue,
   resolveWatchPreferences,
@@ -244,6 +250,7 @@ function prOpened(): string {
     prUrl: url,
     prChange: prChange,
   });
+  recordPrOpenedWatchQos(url, host, stateAfterOpen.watchSkipped === true);
   // Only a skip verified for this PR's repo and branch vouches for it; a PR of
   // any other change owes its own run or skip.
   renderE2eStopVerdict(stateAfterOpen);
@@ -380,6 +387,9 @@ function recordTests(): string {
   // concurrently, and of two unlocked read-modify-writes the later erases the
   // earlier. A skill emit's E2E run is skillStages' to record, not this hook's.
   const next = commitStateMutation(sessionId, outcome);
+  if (outcome.isWatchSkip && stateBefore.watchSkipped !== true) {
+    recordWatchSkippedWatchQos(findUnwatchedHandledPrs(next.prsHandled), host);
+  }
   if (outcome.run.unitTestPassed) renderE2eStopVerdict(next);
   startWalkthroughScanOnGateArming(stateBefore, next, walkthroughPosted);
   if (acceptedSkip) recordSkipReasonOnPrs(next, acceptedSkip);
@@ -632,7 +642,10 @@ function watchGate(): string {
   // A PR awaiting its own background run is armed at Stage 8, once that run reports and its repair loop clears.
   const owedWatchPrUrls = resolveOwedWatchPrs(withoutDelegatedPrs(unwatchedPrUrls, state, Date.now()), state, prStateScan);
   const decision = watchGateDecision(state, owedWatchPrUrls);
-  if (decision.action === WatchGateAction.Release) return releaseGate("watchReleased");
+  if (decision.action === WatchGateAction.Release) {
+    recordWatchMissedWatchQos(decision.unwatched, host);
+    return releaseGate("watchReleased");
+  }
   if (decision.action === WatchGateAction.None) return "{}";
   recordGateBlock("watchBlockCount", decision.blockCount);
   const prList = decision.unwatched.join(", ");
@@ -712,6 +725,7 @@ function watchFollowThroughGate(): string {
     heldPrNumbers: heldPrNumbers,
     blockCount: decision.blockCount,
   });
+  recordCiCaughtAtTurnEndWatchQos(decision.owed, host);
   const owedList = decision.owed.map(owedWatchWorkLine).join("\n");
   const holdInstruction =
     `Only the user can hold it: their own message containing \`${WATCH_HOLD_PHRASE_PREFIX}<pr-number>\` for that PR. ` +

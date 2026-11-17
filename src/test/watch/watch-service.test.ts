@@ -1,6 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "fs";
 import { basename, dirname, join } from "path";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WATCH_QOS_LEDGER_ENV_VAR } from "../../watch-qos/constants.js";
+import { readWatchQosRecords, resolveWatchQosPaths } from "../../watch-qos/ledger.js";
+import { WatchQosSignal } from "../../watch-qos/types.js";
 import {
   LIMIT_RESUME_PROMPT,
   MUGGLE_PLUGIN_ID,
@@ -979,5 +982,38 @@ describe("createDefaultWatchTickDeps", () => {
     expect(deps.isMcpRecoverEnabled).toBe(false);
     expect(deps.paths.watchDir).toMatch(/[\\/]\.muggle-ai[\\/]watch$/);
     expect(deps.paths.muggleInstallLogFile).toMatch(/[\\/]\.muggle-ai[\\/]postinstall\.log$/);
+  });
+});
+
+describe("runWatchTick watch QoS", () => {
+  beforeEach(() => {
+    vi.stubEnv(WATCH_QOS_LEDGER_ENV_VAR, "");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const signalsIn = (paths: WatchPaths): WatchQosSignal[] =>
+    readWatchQosRecords(resolveWatchQosPaths(paths.watchQosDir)).map((record) => record.signal);
+
+  it("records the dead watcher and the red head it sees into the tick's ledger", () => {
+    const { deps, paths } = buildMachine();
+    runWatchTick(deps);
+    expect(signalsIn(paths).sort()).toEqual([WatchQosSignal.CiRedObserved, WatchQosSignal.WatcherDown].sort());
+  });
+
+  it("records merged-red for a PR that merged on an unhandled red head, before closing its slot out", () => {
+    const { deps, machine, paths } = buildMachine();
+    runWatchTick(deps);
+    machine.prNodesByNumber[1] = {
+      state: "MERGED",
+      headRefOid: "head1",
+      baseRefName: "main",
+      commits: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }] },
+    };
+    exitServiceLoop(machine, join(paths.slotsDir, "red-pr"), "TERMINAL pr=1 state=MERGED");
+    expect(runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 }).closedOutSlugs).toEqual(["red-pr"]);
+    expect(signalsIn(paths)).toContain(WatchQosSignal.MergedRed);
   });
 });

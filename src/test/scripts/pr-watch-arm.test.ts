@@ -8,6 +8,8 @@ import { delimiter, join } from "node:path";
 import { detectPrTerminal } from "../../guardrails/prTerminal.js";
 import { OwedWatchWorkKind, PrTerminalVerdict } from "../../guardrails/types.js";
 import { owedWorkInSlot } from "../../guardrails/watchFollowThrough.js";
+import { WATCH_QOS_LEDGER_ENV_VAR } from "../../watch-qos/constants.js";
+import { WatchQosDetector, WatchQosSignal, type WatchQosLedgerRecord } from "../../watch-qos/types.js";
 
 const toBash = (p: string) => p.replace(/\\/g, "/");
 
@@ -767,8 +769,8 @@ describe.skipIf(!hasBash || !hasJq)("pr-watch-arm.sh holds a spent catch-up reba
   }, 60_000);
 });
 
-// Arms o/n#1 with HEAD1's checks settled red, over `lastSeenEntry` when given.
-function armOverRedHead(lastSeenEntry?: object): { slot: string; stdout: string } {
+// Arms o/n#1 with HEAD1's checks settled red, over `lastSeenEntry` when given; `extraEnv` lands on top of the run's env.
+function armOverRedHead(lastSeenEntry?: object, extraEnv: NodeJS.ProcessEnv = {}): { slot: string; stdout: string } {
   const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
   if (lastSeenEntry) writeFileSync(join(slot, "last_seen.json"), JSON.stringify({ "o/n#1": lastSeenEntry }));
   const stdout = execFileSync(
@@ -778,6 +780,7 @@ function armOverRedHead(lastSeenEntry?: object): { slot: string; stdout: string 
       env: {
         ...process.env,
         PATH: `${stubGhDir("OPEN", "unit:FAILURE", 1, undefined, "unit#7")}${delimiter}${process.env.PATH ?? ""}`,
+        ...extraEnv,
       },
       encoding: "utf8",
       timeout: 60_000,
@@ -1260,5 +1263,69 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh feedback reported but never handled",
     );
     expect(eventLines(stdout)).not.toContain(commentEvent);
     expect(owedFeedbackKinds(slot)).toEqual([OwedWatchWorkKind.ReviewFeedback]);
+  }, 60_000);
+});
+
+// A throwaway HOME with the watch QoS ledger switched back on, which the suite turns off everywhere else.
+function watchQosHomeEnv(): { home: string; env: NodeJS.ProcessEnv } {
+  const home = mkdtempSync(join(tmpdir(), "pr-watch-qos-home-"));
+  return { home: home, env: { HOME: home, USERPROFILE: home, [WATCH_QOS_LEDGER_ENV_VAR]: "" } };
+}
+
+function watchQosLedgerOf(home: string): WatchQosLedgerRecord[] {
+  const ledgerFile = join(home, ".muggle-ai", "telemetry", "watch-qos.jsonl");
+  if (!existsSync(ledgerFile)) return [];
+  return readFileSync(ledgerFile, "utf8")
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .map((line) => JSON.parse(line) as WatchQosLedgerRecord);
+}
+
+describe.skipIf(!hasBash)("watch QoS records from the arm and the loop", () => {
+  it("records watch-armed, and ci-red-observed for a head red at arm time, once each across re-arms", () => {
+    const { home, env } = watchQosHomeEnv();
+    armOverRedHead(undefined, env);
+    armOverRedHead(undefined, env);
+    const ledger = watchQosLedgerOf(home);
+    expect(ledger.map((record) => record.signal).sort()).toEqual([WatchQosSignal.CiRedObserved, WatchQosSignal.WatchArmed].sort());
+    expect(ledger.every((record) => record.detector === WatchQosDetector.WatchLoop)).toBe(true);
+    expect(ledger.find((record) => record.signal === WatchQosSignal.CiRedObserved)?.headId).toMatch(/^[0-9a-f]{32}$/);
+  }, 60_000);
+
+  it("records ci-red-observed when the loop sees a head settle red", () => {
+    const { home, env } = watchQosHomeEnv();
+    const slot = seededSlot();
+    runLoopOverSlot(slot, stubGhDir("OPEN", "unit:FAILURE", 1, slot), env);
+    expect(watchQosLedgerOf(home).map((record) => record.signal)).toEqual([WatchQosSignal.CiRedObserved]);
+  }, 60_000);
+
+  it("writes nothing while the ledger is switched off", () => {
+    const { home, env } = watchQosHomeEnv();
+    armOverRedHead(undefined, { ...env, [WATCH_QOS_LEDGER_ENV_VAR]: "off" });
+    expect(watchQosLedgerOf(home)).toEqual([]);
+  }, 60_000);
+
+  it("records watcher-down when the loop gives up with WATCH-FAIL", () => {
+    const { home, env } = watchQosHomeEnv();
+    const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+    let stdout = "";
+    try {
+      execFileSync("bash", [loopPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"], {
+        env: {
+          ...process.env,
+          ...env,
+          PATH: `${stubGhDir()}${delimiter}${process.env.PATH ?? ""}`,
+          MUGGLE_PR_WATCH_POLL_INTERVAL: "1",
+          MUGGLE_PR_WATCH_MAX_UNSEEDED: "1",
+          MUGGLE_PR_WATCH_MONITOR_WINDOW: "0",
+        },
+        encoding: "utf8",
+        timeout: 60_000,
+      });
+    } catch (error: unknown) {
+      stdout = String((error as { stdout?: string }).stdout ?? "");
+    }
+    expect(stdout).toContain("WATCH-FAIL pr=1");
+    expect(watchQosLedgerOf(home).map((record) => record.signal)).toEqual([WatchQosSignal.WatcherDown]);
   }, 60_000);
 });

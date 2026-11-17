@@ -42,6 +42,7 @@ export function makeWatchPaths(root: string): WatchPaths {
     claudeCredentialsFile: join(root, "claude", ".credentials.json"),
     codexSessionsDir: join(root, "codex", "sessions"),
     muggleInstallLogFile: join(root, "muggle", "postinstall.log"),
+    watchQosDir: join(root, "muggle", "telemetry"),
   };
 }
 

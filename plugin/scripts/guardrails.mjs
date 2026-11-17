@@ -1,9 +1,11 @@
 import { spawnSync, execFileSync, spawn } from 'child_process';
-import { readFileSync, rmSync, existsSync, readdirSync, mkdirSync, openSync, fstatSync, readSync, closeSync, writeFileSync, renameSync, statSync, writeSync, unlinkSync } from 'fs';
+import { readFileSync, rmSync, existsSync, readdirSync, mkdirSync, openSync, fstatSync, readSync, closeSync, writeFileSync, renameSync, statSync, writeSync, unlinkSync, appendFileSync } from 'fs';
+import * as path from 'path';
 import { join, isAbsolute, resolve, basename, dirname } from 'path';
+import * as os from 'os';
 import { homedir, tmpdir, hostname } from 'os';
 import { fileURLToPath } from 'url';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 
 // src/guardrails/cli.ts
 
@@ -585,9 +587,9 @@ function boundedChildTimeoutMs(ceilingMs) {
 }
 
 // src/e2e-skip/probes.ts
-var readTextFile = (path) => {
+var readTextFile = (path2) => {
   try {
-    return readFileSync(path, "utf8");
+    return readFileSync(path2, "utf8");
   } catch {
     return null;
   }
@@ -712,8 +714,8 @@ function readRemoteHeadBranch(cwd, remote, readTextFile2) {
 }
 
 // src/guardrails/changeIdentity.ts
-function toRepoKey(host2, path) {
-  const repoPath = path.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+function toRepoKey(host2, path2) {
+  const repoPath = path2.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
   return host2 && repoPath ? `${host2}/${repoPath}`.toLowerCase() : void 0;
 }
 function repoKeyOfPrUrl(prUrl) {
@@ -1222,9 +1224,9 @@ var PR_PROSE_CMD = /\bgh\s+pr\s+(comment|create|edit)\b/;
 var GH_API_CMD = /\bgh\s+api\b/;
 var ISSUE_COMMENT_PATH = /\bissues\/comments\/\d+/;
 var PATCH_METHOD = /(?:--method|-X)[=\s]+PATCH\b/;
-var defaultFileReader = (path, cwd) => {
+var defaultFileReader = (path2, cwd) => {
   try {
-    const abs = isAbsolute(path) ? path : resolve(cwd ?? process.cwd(), path);
+    const abs = isAbsolute(path2) ? path2 : resolve(cwd ?? process.cwd(), path2);
     if (!existsSync(abs)) return null;
     return readFileSync(abs, "utf-8");
   } catch {
@@ -1247,9 +1249,9 @@ function isPrReportPostCommand(cmd) {
 function collectPrPostText(cmd, cwd, read) {
   let text = cmd;
   for (const match of cmd.matchAll(/(?:--body-file|--input)[=\s]+("[^"]+"|'[^']+'|\S+)/g)) {
-    const path = unquote(match[1]);
-    if (path && path !== "-") {
-      const contents = read(path, cwd);
+    const path2 = unquote(match[1]);
+    if (path2 && path2 !== "-") {
+      const contents = read(path2, cwd);
       if (contents) text += "\n" + contents;
     }
   }
@@ -1859,8 +1861,8 @@ function expandShellWord(word, variables) {
     (_reference, bracedName, bareName) => variables[bracedName ?? bareName ?? ""] ?? ""
   );
 }
-function resolveShellPath(path, workingDirectory) {
-  return isAbsolute(path) || WINDOWS_ABSOLUTE_PATH.test(path) ? path : resolve(workingDirectory, path);
+function resolveShellPath(path2, workingDirectory) {
+  return isAbsolute(path2) || WINDOWS_ABSOLUTE_PATH.test(path2) ? path2 : resolve(workingDirectory, path2);
 }
 function detectShellStageReads(command, cwd, env = process.env) {
   const variables = { ...env };
@@ -2294,6 +2296,256 @@ function buildE2eOwedReason(input2) {
   return owedSentence + `Run change-driven E2E now via ${input2.muggleTestSkill}${walkthroughStep}, then finish. ${skipClause} Only when no verifiable code fits and a browser run genuinely cannot exercise the change, cite ${"NOT_APPLICABLE" /* NotApplicable */} with the reason \u2014 the PR shows it as your unverified judgment.`;
 }
 
+// src/watch-qos/types.ts
+var WatchQosSignal = /* @__PURE__ */ ((WatchQosSignal2) => {
+  WatchQosSignal2["PrOpened"] = "pr-opened";
+  WatchQosSignal2["WatchArmed"] = "watch-armed";
+  WatchQosSignal2["WatchMissed"] = "watch-missed";
+  WatchQosSignal2["WatchSkipped"] = "watch-skipped";
+  WatchQosSignal2["WatcherDown"] = "watcher-down";
+  WatchQosSignal2["WatcherRecovered"] = "watcher-recovered";
+  WatchQosSignal2["CiRedObserved"] = "ci-red-observed";
+  WatchQosSignal2["CiRedHandled"] = "ci-red-handled";
+  WatchQosSignal2["CiRedLate"] = "ci-red-late";
+  WatchQosSignal2["CiRedCaughtAtTurnEnd"] = "ci-red-caught-at-turn-end";
+  WatchQosSignal2["MergedRed"] = "merged-red";
+  WatchQosSignal2["ClosedRed"] = "closed-red";
+  return WatchQosSignal2;
+})(WatchQosSignal || {});
+var WatchQosDetector = /* @__PURE__ */ ((WatchQosDetector2) => {
+  WatchQosDetector2["TurnEndGate"] = "turn-end-gate";
+  WatchQosDetector2["FollowThroughGate"] = "follow-through-gate";
+  WatchQosDetector2["WatchService"] = "watch-service";
+  WatchQosDetector2["WatchLoop"] = "watch-loop";
+  WatchQosDetector2["Cleanup"] = "cleanup";
+  return WatchQosDetector2;
+})(WatchQosDetector || {});
+var WatchQosHost = /* @__PURE__ */ ((WatchQosHost2) => {
+  WatchQosHost2["ClaudeCode"] = "claude-code";
+  WatchQosHost2["Codex"] = "codex";
+  return WatchQosHost2;
+})(WatchQosHost || {});
+
+// src/watch-qos/host.ts
+function watchQosHostOfHookHost(host2) {
+  return host2 === "codex" ? "codex" /* Codex */ : "claude-code" /* ClaudeCode */;
+}
+var DATA_DIR_NAME = ".muggle-ai";
+function getDataDir() {
+  return path.join(os.homedir(), DATA_DIR_NAME);
+}
+
+// packages/mcps/src/shared/install_id.ts
+var INSTALL_ID_FILENAME = "install-id.json";
+var cachedInstallId;
+function installIdFilePath() {
+  return join(getDataDir(), INSTALL_ID_FILENAME);
+}
+function generateAndPersist(filePath) {
+  const installId = randomUUID();
+  const contents = { installId };
+  mkdirSync(dirname(filePath), { recursive: true });
+  writeFileSync(filePath, JSON.stringify(contents, null, 2) + "\n", "utf8");
+  return installId;
+}
+function isValid(value) {
+  return typeof value === "object" && value !== null && typeof value.installId === "string" && value.installId.length > 0;
+}
+function getInstallId() {
+  if (cachedInstallId !== void 0) return cachedInstallId;
+  const filePath = installIdFilePath();
+  if (!existsSync(filePath)) {
+    cachedInstallId = generateAndPersist(filePath);
+    return cachedInstallId;
+  }
+  try {
+    const raw = readFileSync(filePath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (isValid(parsed)) {
+      cachedInstallId = parsed.installId;
+      return cachedInstallId;
+    }
+    cachedInstallId = generateAndPersist(filePath);
+    return cachedInstallId;
+  } catch {
+    cachedInstallId = generateAndPersist(filePath);
+    return cachedInstallId;
+  }
+}
+
+// src/watch-qos/constants.ts
+var WATCH_QOS_DIR_NAME = "telemetry";
+var WATCH_QOS_LEDGER_FILE_NAME = "watch-qos.jsonl";
+var WATCH_QOS_ROTATED_LEDGER_FILE_NAME = "watch-qos.1.jsonl";
+var WATCH_QOS_CURSOR_FILE_NAME = "watch-qos.cursor.json";
+var WATCH_QOS_IDENTITY_HEX_LENGTH = 32;
+var WATCH_QOS_IDENTITY_SEPARATOR = "\n";
+var WATCH_QOS_DEDUP_KEY_SEPARATOR = "|";
+var WATCH_QOS_LEDGER_ENV_VAR = "MUGGLE_WATCH_QOS_LEDGER";
+var WATCH_QOS_LEDGER_DISABLED_VALUE = "off";
+
+// src/watch-qos/identity.ts
+function prReferenceOf(repo, prNumber) {
+  return `${repo}#${prNumber}`;
+}
+function prReferenceOfUrl(prUrl) {
+  const coordinates = parsePrUrl(prUrl);
+  return coordinates ? prReferenceOf(coordinates.repo, coordinates.prNumber) : prUrl;
+}
+function hashWatchQosIdentity(identity, salt) {
+  return createHash("sha256").update(`${salt}${WATCH_QOS_IDENTITY_SEPARATOR}${identity}`).digest("hex").slice(0, WATCH_QOS_IDENTITY_HEX_LENGTH);
+}
+function resolveWatchQosSalt() {
+  return getInstallId();
+}
+function resolveWatchQosPaths(watchQosDir = join(getDataDir(), WATCH_QOS_DIR_NAME)) {
+  return {
+    ledgerFile: join(watchQosDir, WATCH_QOS_LEDGER_FILE_NAME),
+    rotatedLedgerFile: join(watchQosDir, WATCH_QOS_ROTATED_LEDGER_FILE_NAME),
+    cursorFile: join(watchQosDir, WATCH_QOS_CURSOR_FILE_NAME)
+  };
+}
+function watchQosDedupKey(record) {
+  return [record.signal, record.subjectId, record.headId ?? "", record.occurrenceKey ?? ""].join(WATCH_QOS_DEDUP_KEY_SEPARATOR);
+}
+function isEnumValue(enumObject, candidate) {
+  return typeof candidate === "string" && Object.values(enumObject).includes(candidate);
+}
+function optionalStringField(candidate) {
+  return typeof candidate === "string" && candidate !== "" ? candidate : void 0;
+}
+function parseWatchQosLedgerLine(line) {
+  let parsed;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return void 0;
+  }
+  if (typeof parsed !== "object" || parsed === null) return void 0;
+  const { at, signal, detector, subjectId, host: host2 } = parsed;
+  if (typeof at !== "string" || typeof subjectId !== "string" || subjectId === "") return void 0;
+  if (!isEnumValue(WatchQosSignal, signal) || !isEnumValue(WatchQosDetector, detector) || !isEnumValue(WatchQosHost, host2)) {
+    return void 0;
+  }
+  const delaySeconds = parsed.delaySeconds;
+  return {
+    at,
+    signal,
+    detector,
+    subjectId,
+    headId: optionalStringField(parsed.headId),
+    delaySeconds: typeof delaySeconds === "number" && Number.isFinite(delaySeconds) ? delaySeconds : void 0,
+    host: host2,
+    occurrenceKey: optionalStringField(parsed.occurrenceKey)
+  };
+}
+function readLedgerLines(filePath) {
+  try {
+    return readFileSync(filePath, "utf-8").split("\n");
+  } catch {
+    return [];
+  }
+}
+function readWatchQosRecords(paths) {
+  return [...readLedgerLines(paths.rotatedLedgerFile), ...readLedgerLines(paths.ledgerFile)].flatMap((line) => {
+    const record = line.trim() === "" ? void 0 : parseWatchQosLedgerLine(line);
+    return record ? [record] : [];
+  });
+}
+function findWatchQosRecord(paths, signal, subjectId, headId) {
+  return readWatchQosRecords(paths).find(
+    (record) => record.signal === signal && record.subjectId === subjectId && record.headId === headId
+  );
+}
+function appendWatchQosRecord(paths, record) {
+  const dedupKey = watchQosDedupKey(record);
+  if (readWatchQosRecords(paths).some((existing) => watchQosDedupKey(existing) === dedupKey)) return false;
+  mkdirSync(dirname(paths.ledgerFile), { recursive: true });
+  appendFileSync(paths.ledgerFile, `${JSON.stringify(record)}
+`);
+  return true;
+}
+
+// src/watch-qos/recorder.ts
+function isLedgerDisabled() {
+  return process.env[WATCH_QOS_LEDGER_ENV_VAR] === WATCH_QOS_LEDGER_DISABLED_VALUE;
+}
+function toWatchQosLedgerRecord(observation, salt, nowMs) {
+  return {
+    at: new Date(nowMs).toISOString(),
+    signal: observation.signal,
+    detector: observation.detector,
+    subjectId: hashWatchQosIdentity(observation.prReference, salt),
+    headId: observation.headSha ? hashWatchQosIdentity(observation.headSha, salt) : void 0,
+    delaySeconds: observation.delaySeconds === void 0 ? void 0 : Math.max(0, Math.round(observation.delaySeconds)),
+    host: observation.host,
+    occurrenceKey: observation.occurrenceKey
+  };
+}
+function recordWatchQosObservation(observation, nowMs = Date.now(), paths = resolveWatchQosPaths()) {
+  if (isLedgerDisabled()) return false;
+  try {
+    return appendWatchQosRecord(paths, toWatchQosLedgerRecord(observation, resolveWatchQosSalt(), nowMs));
+  } catch {
+    return false;
+  }
+}
+function ciRedObservedAtMs(prReference, headSha, paths = resolveWatchQosPaths()) {
+  try {
+    const salt = resolveWatchQosSalt();
+    const observed = findWatchQosRecord(
+      paths,
+      "ci-red-observed" /* CiRedObserved */,
+      hashWatchQosIdentity(prReference, salt),
+      hashWatchQosIdentity(headSha, salt)
+    );
+    const observedAtMs = observed ? Date.parse(observed.at) : NaN;
+    return Number.isFinite(observedAtMs) ? observedAtMs : void 0;
+  } catch {
+    return void 0;
+  }
+}
+
+// src/guardrails/watchQos.ts
+function recordTurnEndSignal(signal, prUrls, host2) {
+  for (const prUrl of prUrls) {
+    recordWatchQosObservation({
+      signal,
+      detector: "turn-end-gate" /* TurnEndGate */,
+      prReference: prReferenceOfUrl(prUrl),
+      host: watchQosHostOfHookHost(host2)
+    });
+  }
+}
+function recordPrOpenedWatchQos(prUrl, host2, isWatchSkipped) {
+  recordTurnEndSignal("pr-opened" /* PrOpened */, [prUrl], host2);
+  if (isWatchSkipped) recordTurnEndSignal("watch-skipped" /* WatchSkipped */, [prUrl], host2);
+}
+function recordWatchMissedWatchQos(unwatchedPrUrls, host2) {
+  recordTurnEndSignal("watch-missed" /* WatchMissed */, unwatchedPrUrls, host2);
+}
+function recordWatchSkippedWatchQos(unwatchedPrUrls, host2) {
+  recordTurnEndSignal("watch-skipped" /* WatchSkipped */, unwatchedPrUrls, host2);
+}
+function recordCiCaughtAtTurnEndWatchQos(owedWork, host2, nowMs = Date.now()) {
+  for (const work of owedWork) {
+    if (work.kind !== "fix-ci" /* FixCi */) continue;
+    const prReference = prReferenceOfUrl(work.prUrl);
+    const observedAtMs = ciRedObservedAtMs(prReference, work.dueOn);
+    recordWatchQosObservation(
+      {
+        signal: "ci-red-caught-at-turn-end" /* CiRedCaughtAtTurnEnd */,
+        detector: "follow-through-gate" /* FollowThroughGate */,
+        prReference,
+        headSha: work.dueOn,
+        delaySeconds: observedAtMs === void 0 ? void 0 : (nowMs - observedAtMs) / 1e3,
+        host: watchQosHostOfHookHost(host2)
+      },
+      nowMs
+    );
+  }
+}
+
 // src/guardrails/finishedRun.ts
 function detectFinishedRun(input2) {
   if (!MUGGLE_EXECUTION_TOOL.test(input2.tool_name ?? "")) return void 0;
@@ -2432,9 +2684,9 @@ function pathsWithChangedPatch(beforeDiff, afterDiff) {
   const before = changedLinesByPath(beforeDiff);
   const after = changedLinesByPath(afterDiff);
   const paths = /* @__PURE__ */ new Set([...before.keys(), ...after.keys()]);
-  return [...paths].filter((path) => {
-    const beforeLines = before.get(path);
-    const afterLines = after.get(path);
+  return [...paths].filter((path2) => {
+    const beforeLines = before.get(path2);
+    const afterLines = after.get(path2);
     return !beforeLines || !afterLines || beforeLines.join("\n") !== afterLines.join("\n");
   });
 }
@@ -2645,7 +2897,7 @@ var verifyRebasedNoAppLogicChange = (context, preCycleSha, baseTipSha) => {
   if (before === null || after === null) {
     return refuted(`${preCycleSha} does not resolve to a commit here, or the PR's patch against ${baseTipSha} could not be read`);
   }
-  const appLogicPaths = pathsWithChangedPatch(before, after).filter((path) => !isNonAppPath(path));
+  const appLogicPaths = pathsWithChangedPatch(before, after).filter((path2) => !isNonAppPath(path2));
   if (appLogicPaths.length > 0) {
     return refuted(`the rebase onto ${baseTipSha} changed this PR's own patch on app-logic paths: ${namePaths(appLogicPaths)}`);
   }
@@ -2670,7 +2922,7 @@ var verifyNoAppLogicChange = (context, detail) => {
   if (changedPaths.length === 0) {
     return refuted(`HEAD carries no change since ${sha} \u2014 declare the skip once the cycle's commits are on HEAD`);
   }
-  const appLogicPaths = changedPaths.filter((path) => !isNonAppPath(path));
+  const appLogicPaths = changedPaths.filter((path2) => !isNonAppPath(path2));
   if (appLogicPaths.length > 0) return refuted(`app-logic paths changed since ${sha}: ${namePaths(appLogicPaths)}`);
   return verified;
 };
@@ -2772,10 +3024,10 @@ function newThreadEntry(provider) {
   };
 }
 function readLedger(slotPath) {
-  const path = ledgerPath(slotPath);
-  if (!existsSync(path)) return { version: LEDGER_VERSION, threads: {} };
+  const path2 = ledgerPath(slotPath);
+  if (!existsSync(path2)) return { version: LEDGER_VERSION, threads: {} };
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf-8"));
+    const parsed = JSON.parse(readFileSync(path2, "utf-8"));
     return { version: parsed.version ?? LEDGER_VERSION, threads: parsed.threads ?? {} };
   } catch {
     return { version: LEDGER_VERSION, threads: {} };
@@ -3312,6 +3564,7 @@ function prOpened() {
     prUrl: url,
     prChange
   });
+  recordPrOpenedWatchQos(url, host, stateAfterOpen.watchSkipped === true);
   renderE2eStopVerdict(stateAfterOpen);
   const declaredSkip = isPrCoveredBySkip(stateAfterOpen, url) ? stateAfterOpen.e2eSkipDeclaration : void 0;
   if (declaredSkip) {
@@ -3391,6 +3644,9 @@ function recordTests() {
     failedRunId: detectFailedRunId(input)
   };
   const next = commitStateMutation(sessionId, outcome);
+  if (outcome.isWatchSkip && stateBefore.watchSkipped !== true) {
+    recordWatchSkippedWatchQos(findUnwatchedHandledPrs(next.prsHandled), host);
+  }
   if (outcome.run.unitTestPassed) renderE2eStopVerdict(next);
   startWalkthroughScanOnGateArming(stateBefore, next, walkthroughPosted);
   if (acceptedSkip) recordSkipReasonOnPrs(next, acceptedSkip);
@@ -3546,7 +3802,10 @@ function watchGate() {
   }
   const owedWatchPrUrls = resolveOwedWatchPrs(withoutDelegatedPrs(unwatchedPrUrls, state, Date.now()), state, prStateScan);
   const decision = watchGateDecision(state, owedWatchPrUrls);
-  if (decision.action === "release" /* Release */) return releaseGate("watchReleased");
+  if (decision.action === "release" /* Release */) {
+    recordWatchMissedWatchQos(decision.unwatched, host);
+    return releaseGate("watchReleased");
+  }
   if (decision.action === "none" /* None */) return "{}";
   recordGateBlock("watchBlockCount", decision.blockCount);
   const prList = decision.unwatched.join(", ");
@@ -3590,6 +3849,7 @@ function watchFollowThroughGate() {
     heldPrNumbers,
     blockCount: decision.blockCount
   });
+  recordCiCaughtAtTurnEndWatchQos(decision.owed, host);
   const owedList = decision.owed.map(owedWatchWorkLine).join("\n");
   const holdInstruction = `Only the user can hold it: their own message containing \`${WATCH_HOLD_PHRASE_PREFIX}<pr-number>\` for that PR. Ask if you must; never decide it for them.`;
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. A muggle-pr-followup watch this session owns found work due that nothing acted on:

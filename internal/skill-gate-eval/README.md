@@ -61,7 +61,11 @@ bounded pool — `--concurrency N` (or `SKILL_GATE_EVAL_CONCURRENCY`), default 4
 to 3× with exponential backoff, and the cooldown is shared across the pool so
 one 429 pauses new starts for every worker instead of compounding. `--verbose`
 traces interleave under concurrency; each line is prefixed with its
-scenario/rep label.
+scenario/rep label. `--transcripts-dir <dir>` writes each rep's full event
+stream, then its verdict, to `<dir>/<scenario>.rep<n>.jsonl`; under Codex each
+turn end adds a `gate_eval.turn_end` event with the closing message and the
+scripted reply it got, or `null` where the run stopped. CI uploads them as the
+`codex-gate-transcripts` artifact.
 
 **Usage limits:** a rep stopped by a spent session, weekly or org spend limit is
 not retried and counts as no result. The scenario is judged on its other reps,
@@ -85,7 +89,8 @@ CODEX_API_KEY=... MUGGLE_BRAIN_DIR=../muggle-ai-brain \
 
 - **Prompt.** The same skill, gate contract and synthesized SessionStart context, given to Codex as developer instructions. The Codex notes replace the agent SDK notes. Where the skill says AskUserQuestion, Codex is told what the skills' `_shared/host-tool-equivalents.md` table tells a real Codex session. The prompt is built from the same inputs only, and `test/system-prompt.test.ts` holds both hosts to that.
 - **Tools.** The shell and Codex's other built-in tools are switched off. The mock muggle tools are served over stdio as a required `muggle` MCP server, so Codex names them exactly as it names the real ones. `codex-gate-hook.mjs`, a PreToolUse hook on every tool, records each call. A mock muggle call runs, `request_user_input` is answered with the scenario's scripted pick (the same deny channel the agent SDK harness answers AskUserQuestion on), and anything else is denied.
-- **Questions in prose.** Where Codex does not offer its question tool, a skill asks by ending its turn on the question. A turn that ends on a question the scenario scripts is answered by resuming the thread with the pick, up to `CODEX_MAX_RESUMES` times.
+- **Questions in prose.** Where Codex does not offer its question tool (`codex exec`'s default mode never does), a skill asks by ending its turn on the question. A turn that ends on a question the scenario scripts is answered by resuming the thread with the pick, up to `CODEX_MAX_RESUMES` times. A closing message asks when it carries a `?` or lists the scripted pick as a numbered option, since Codex often heads a picker "Pick the use case:".
+- **Other `ask` gates.** Every gate the scenario sets to `ask` has its contract inlined beside the gate under test's, on both hosts, so a post-run picker is asked in its own words and its scripted answer matches.
 - **Model.** Codex ignores a skill's `model:`, so the reps run Codex's default model unless `--model` names one.
 - **Codex home.** Each gate run gets a fresh Codex home, authenticated by `CODEX_API_KEY`. `--codex-home <dir>` reuses one instead, for example a directory you ran `CODEX_HOME=<dir> codex login` in. The eval writes its own `config.toml` and `hooks.json` there, and refuses a directory whose `config.toml` it did not write. `--codex-config key=value` (repeatable) passes a config override to every run.
 

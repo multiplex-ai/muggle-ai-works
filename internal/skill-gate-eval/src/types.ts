@@ -149,6 +149,8 @@ export interface GatePromptInputs {
   skillBody: string;
   /** The gate-under-test's contract, or "" when the skill has none on disk. */
   gateBody: string;
+  /** The contract of every other gate the scenario sets to `ask`, in preference order. */
+  askGateBodies: string[];
   /** The scenario's preferences as `key=value` pairs, space-separated. */
   prefs: string;
   /** The scenario's other session-context lines, newline-joined. */
@@ -196,6 +198,12 @@ export interface CodexTurnOutput {
   stderr: string;
 }
 
+/** One rep's transcript file, open for appending. */
+export interface RepTranscript {
+  appendEvent: (event: unknown) => void;
+  appendVerdict: (repVerdict: RunVerdict) => void;
+}
+
 export interface CliArgs {
   gate: string;
   skill: string;
@@ -212,6 +220,8 @@ export interface CliArgs {
   codexConfig: string[];
   /** Max eval reps in flight at once; 1 reproduces the old sequential behavior. */
   concurrency: number;
+  /** Where each rep's full event stream and verdict are written, one JSONL file per rep; unset keeps none. */
+  transcriptsDir?: string;
 }
 
 /** Shared cooldown: one throttled rep pauses new starts for every worker. */

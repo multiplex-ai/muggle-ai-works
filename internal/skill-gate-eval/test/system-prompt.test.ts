@@ -22,6 +22,8 @@ const SUPPORT_BODY = "SUPPORT_FILE_MARKER";
  * scope rule has to widen with it. The Codex harness (no shell, every other tool
  * denied) is held to the same contract; its one addition is the AskUserQuestion
  * row of the skills' host-tool-equivalents table, which its scope rule covers.
+ * Other gate contracts may reach it — every change under preference-gates/
+ * already runs the full suite.
  */
 const PROMPT_BUILDERS = [
   { host: "the agent SDK", build: buildSystemPrompt },
@@ -73,5 +75,16 @@ describe.each(PROMPT_BUILDERS)("the gate prompt under $host is built from the sk
 
   it("carries the scenario's preferences, which are the other half of the input", () => {
     expect(build(options)).toContain("checkForUpdates=ask");
+  });
+
+  it("carries the contract of every other gate set to ask, and only those", () => {
+    const gatesDir = join(skillsDir, "muggle-preferences", "preference-gates");
+    writeFileSync(join(gatesDir, "openTestResultsAfterRun.md"), "OTHER_ASK_GATE_MARKER");
+    writeFileSync(join(gatesDir, "autoLogin.md"), "SETTLED_GATE_MARKER");
+    options.scenario.preferences = { checkForUpdates: "ask", openTestResultsAfterRun: "ask", autoLogin: "always" };
+    const prompt = build(options);
+    expect(prompt).toContain("OTHER_ASK_GATE_MARKER");
+    expect(prompt).not.toContain("SETTLED_GATE_MARKER");
+    expect(prompt.split(GATE_BODY).length - 1).toBe(1);
   });
 });

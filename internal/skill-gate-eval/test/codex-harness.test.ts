@@ -5,7 +5,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { fileURLToPath } from "url";
 import { closingMessageOf, mockToolNamesByCodexName, threadIdOf, turnFailureOf } from "../src/codex-cli.js";
-import { codexQuestionGuidance, prepareCodexGateHome, readCodexGateTrace } from "../src/codex-harness.js";
+import { closingQuestion, codexQuestionGuidance, prepareCodexGateHome, readCodexGateTrace } from "../src/codex-harness.js";
 import { CODEX_EVAL_HOME_MARKER, CODEX_GATE_ANSWERS_ENV, CODEX_GATE_TRACE_ENV } from "../src/constants.js";
 import type { CodexGateTraceEntry, Scenario } from "../src/types.js";
 import { extractFirstQuestionText, matchAskQuestionAnswer } from "../src/verdict.js";
@@ -130,6 +130,41 @@ describe("reading what a Codex run did", () => {
     // The hook-trust bypass is reported as an error item on every session; it is not a failure.
     expect(turnFailureOf(COMPLETED_TURN)).toBe("");
     expect(turnFailureOf(RATE_LIMITED_TURN)).toContain("Rate limit reached");
+  });
+});
+
+describe("reading a question Codex asks in prose", () => {
+  const scenario = {
+    askQuestionAnswers: [
+      { questionContains: "use case", answer: "Sign up flow" },
+      { questionContains: "test case", answer: "Successful signup with valid email" },
+    ],
+    expect: { gateQuestionSubstring: "Show the test browser" },
+  } as Scenario;
+
+  // Closing messages real Codex reps ended on (codex-cli 0.166.0), which the harness once read as no question.
+  it("answers a picker headed without a question mark, as Codex asks it", () => {
+    const pickUseCase = [
+      "Using saved project “Stub Project” at http://localhost:3000. Pick the use case:",
+      "",
+      "1. **Sign up flow** — User registration end-to-end",
+      "2. **Show full list**",
+      "3. **Create new use case**",
+    ].join("\n");
+    expect(closingQuestion(pickUseCase, scenario, 2.5)).toEqual({ question: pickUseCase, answer: "Sign up flow", sequence: 2.5 });
+    const withTrailer = `${pickUseCase}\n\nThe muggle-test-feature-local skill requires you to select the use case before I run the test.`;
+    expect(closingQuestion(withTrailer, scenario, 2.5)?.answer).toBe("Sign up flow");
+  });
+
+  it("still answers a question that carries a question mark", () => {
+    expect(closingQuestion("Which test case should I run?\n1. Successful signup with valid email", scenario, 1)?.answer)
+      .toBe("Successful signup with valid email");
+  });
+
+  it("reads a closing summary as no question, even one that ends on numbered steps or names the use case", () => {
+    const summary = "Ran the Sign up flow use case: passed.\n\nSteps:\n1. Navigate\n2. Fill email";
+    expect(closingQuestion(summary, scenario, 9)).toBeUndefined();
+    expect(closingQuestion("Done. Use case Sign up flow passed.", scenario, 9)).toBeUndefined();
   });
 });
 

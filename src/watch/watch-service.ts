@@ -51,6 +51,9 @@ import {
   writeSlotRegistration,
 } from "./watch-slots.js";
 import { canRestartSessionIn } from "./workspace-trust.js";
+import { deriveWatchQosObservations, watchQosHostsBySessionId } from "./watch-qos-detectors.js";
+import { resolveWatchQosPaths } from "../watch-qos/ledger.js";
+import { ciRedObservedAtMs, recordWatchQosObservation } from "../watch-qos/recorder.js";
 import {
   ClaudeProcessStatus,
   ReloadAction,
@@ -72,6 +75,7 @@ import {
   type WatchEvent,
   type WatchLedgerState,
   type WatchPaths,
+  type WatchQosTickInput,
   type WatchSlotAssessment,
   type WatchSnapshot,
   type WatchTickDeps,
@@ -341,6 +345,17 @@ function closeOutTerminalSlots(assessments: WatchSlotAssessment[], deps: WatchTi
   return { closedOutSlugs: closedOutSlugs, events: events };
 }
 
+/** Append this tick's watch quality-of-service observations to the local ledger; the upload happens apart from the tick. */
+function recordWatchQos(deps: WatchTickDeps, input: Omit<WatchQosTickInput, "nowMs" | "ciRedObservedAtMs">): void {
+  const watchQosPaths = resolveWatchQosPaths(deps.paths.watchQosDir);
+  const observations = deriveWatchQosObservations({
+    ...input,
+    nowMs: deps.nowMs,
+    ciRedObservedAtMs: (prReference, headSha) => ciRedObservedAtMs(prReference, headSha, watchQosPaths),
+  });
+  for (const observation of observations) recordWatchQosObservation(observation, deps.nowMs, watchQosPaths);
+}
+
 function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
   const at = new Date(deps.nowMs).toISOString();
   const installs = readInstallHistory(deps.paths.muggleInstallLogFile);
@@ -371,6 +386,13 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
   const findings = deriveWatchFindings(assessments, processes ?? [], isPollingDisabled);
 
   const transitions = reconcileActiveFindings(state.activeFindings, findings, at);
+  // Every assessment, terminal ones included: a PR that merged or closed red is judged before its slot is closed out.
+  recordWatchQos(deps, {
+    assessments: allAssessments,
+    lastSeenJsonBySlotDir: new Map(slots.map((slot) => [slot.slotDir, slot.lastSeenJson])),
+    transitions: transitions,
+    hostBySessionId: watchQosHostsBySessionId(sessions),
+  });
   const events: WatchEvent[] = [
     ...transitions.raised.map((raised) => ({ at: at, kind: WatchEventKind.Raised, key: raised.key, code: raised.code, subject: raised.subject, message: raised.message })),
     ...transitions.cleared.map(({ key, record }) => ({ at: at, kind: WatchEventKind.Cleared, key: key, code: record.code, subject: record.subject })),

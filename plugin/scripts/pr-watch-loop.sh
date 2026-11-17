@@ -44,7 +44,7 @@ fi
 # gone. Guards missing means the plugin moved or upgraded underneath this loop —
 # a newer version's watcher owns the slot now, so step down rather than run on
 # without the supersede check.
-for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh pr-watch-due.sh pr-watch-floors.sh; do
+for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh pr-watch-due.sh pr-watch-floors.sh pr-watch-qos.sh; do
     [ -f "${script_dir}/${lib}" ] || exit 0
     # shellcheck source=/dev/null
     . "${script_dir}/${lib}"
@@ -154,6 +154,7 @@ while :; do
         unseeded=$((unseeded + MUGGLE_PR_WATCH_POLL_INTERVAL))
         if watcher_unseeded_too_long "$unseeded"; then
             echo "WATCH-FAIL pr=$pr_number no watch-watermark.env after ${unseeded}s — arming never seeded it, so this watch can detect nothing (arm-watcher.md steps 1-2)"
+            watch_qos_record watcher-down "$repo" "$pr_number" "" "$$-$started"
             exit 1
         fi
         pause "$MUGGLE_PR_WATCH_POLL_INTERVAL"
@@ -181,6 +182,7 @@ while :; do
         echo "$(date -u +%FT%TZ) fetch empty (${fails}/${MUGGLE_PR_WATCH_MAX_FETCH_FAILURES})" >> "${slot}/watch-fetch.log"
         if [ "$fails" -ge "$MUGGLE_PR_WATCH_MAX_FETCH_FAILURES" ]; then
             echo "WATCH-FAIL pr=$pr_number ${fails} consecutive fetch failures — see watch-fetch.log"
+            watch_qos_record watcher-down "$repo" "$pr_number" "" "$$-$started"
             exit 1
         fi
         pause "$(watcher_fetch_backoff "$fails")"
@@ -210,6 +212,7 @@ while :; do
         fails=$((fails + 1))
         if [ "$fails" -ge "$MUGGLE_PR_WATCH_MAX_FETCH_FAILURES" ]; then
             echo "WATCH-FAIL pr=$pr_number unreadable state after ${fails} tries"
+            watch_qos_record watcher-down "$repo" "$pr_number" "" "$$-$started"
             exit 1
         fi
         pause "$(watcher_fetch_backoff "$fails")"
@@ -274,6 +277,7 @@ while :; do
         watch_record_due_work "$slot" "$head_sha" "$due_rebase_key" "$ci_red_head" \
             "$due_feedback_reviews" "$due_feedback_conversation" "$due_feedback_threads"
         recorded_due_work="$due_work"
+        [ -n "$ci_red_head" ] && watch_qos_record ci-red-observed "$repo" "$pr_number" "$ci_red_head"
     fi
 
     # The tick owns clearing the block, and it may not run for a while. Holding

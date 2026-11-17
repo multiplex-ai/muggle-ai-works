@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { WATCH_QOS_LEDGER_DISABLED_VALUE, WATCH_QOS_LEDGER_ENV_VAR } from "./src/watch-qos/constants";
 
 /** Ceiling for a single test or hook. Sized for the suites that spawn a TypeScript-compiling subprocess per assertion, not for the median test. */
 export const SPAWN_HEAVY_TIMEOUT_MS = 30_000;
@@ -14,7 +15,12 @@ export const WALL_CLOCK_HOOK_TESTS = [
 ];
 
 /** Env every vitest run here sets; why is noted where the config below applies it. */
-export const TEST_RUN_ENV = { MUGGLE_GUARDRAIL_GH_CALLS: "off", MUGGLE_STACK_SERVICE_STOPS: "off", MUGGLE_PR_LOOKUP: "off" };
+export const TEST_RUN_ENV = {
+  MUGGLE_GUARDRAIL_GH_CALLS: "off",
+  MUGGLE_STACK_SERVICE_STOPS: "off",
+  MUGGLE_PR_LOOKUP: "off",
+  [WATCH_QOS_LEDGER_ENV_VAR]: WATCH_QOS_LEDGER_DISABLED_VALUE,
+};
 
 /** Global setup that creates the run's temp root and removes it when the run ends. */
 export const RUN_TEMP_ROOT_GLOBAL_SETUP = "src/test/vitest-temp-root/globalSetup.ts";

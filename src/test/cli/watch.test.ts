@@ -21,11 +21,18 @@ const serviceMock = vi.hoisted(() => ({
   createDefaultWatchServiceInstallDeps: vi.fn(() => ({ platform: "win32" })),
 }));
 
+const uploadMock = vi.hoisted(() => ({
+  uploadWatchQosLedger: vi.fn(() => ({ outcome: "nothing-pending", sentCount: 0, skippedCount: 0 })),
+}));
+
 vi.mock("../../watch/watch-service.js", () => serviceMock);
+vi.mock("../../watch-qos/uploader.js", () => uploadMock);
 vi.mock("../../watch/install-service.js", () => serviceMock);
 vi.mock("../../../packages/mcps/src/index.js", async () => ({
   PreferenceKey: (await import("../../../packages/mcps/src/shared/preferences-types.js")).PreferenceKey,
   resolvePreferences: () => ({ autoInstallWatchService: "ask" }),
+  RuntimeTarget: (await import("../../../packages/mcps/src/shared/runtime-target-types.js")).RuntimeTarget,
+  getActiveRuntimeTarget: () => "dev",
 }));
 
 import {
@@ -85,6 +92,13 @@ describe("watchTickCommand", () => {
       isMcpRecoverEnabled: false,
     });
     expect(stdout).toBe("muggle watch: 0 sessions, 0 PR watches, 2 findings (1 alerts), 1 owner sessions resumed\n");
+  });
+
+  it("uploads the watch quality ledger after the tick", () => {
+    serviceMock.runWatchTick.mockReturnValue(snapshot);
+    uploadMock.uploadWatchQosLedger.mockClear();
+    watchTickCommand({ autoReload: false, recovery: false, remoteControl: false, limitResume: false, mcpRecover: false });
+    expect(uploadMock.uploadWatchQosLedger).toHaveBeenCalledTimes(1);
   });
 
   it("prints the snapshot as JSON on request", () => {

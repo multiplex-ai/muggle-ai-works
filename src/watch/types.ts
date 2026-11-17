@@ -1,4 +1,5 @@
 import type { ProviderPrState } from "../guardrails/types.js";
+import type { WatchQosHost } from "../watch-qos/types.js";
 
 /** The coding agent a work session belongs to. */
 export enum WorkSessionAgent {
@@ -628,6 +629,8 @@ export interface WatchPaths {
   claudeCredentialsFile: string;
   codexSessionsDir: string;
   muggleInstallLogFile: string;
+  /** Where the watch quality-of-service ledger lives. */
+  watchQosDir: string;
 }
 
 /** The Claude login as read from Claude's own files this tick. */
@@ -774,4 +777,18 @@ export interface WatchTickDeps {
   launchServiceLoop: ServiceLoopLauncher;
   /** Pause between listings while a restart waits for a stopped session to exit; blocks the thread when unset. */
   sleep?: (durationMs: number) => void;
+}
+
+/** What one tick hands the watch quality-of-service detector. */
+export interface WatchQosTickInput {
+  /** Every slot PR judged this tick, terminal ones included, before any is closed out. */
+  assessments: WatchSlotAssessment[];
+  /** Each slot's `last_seen.json` text, by slot dir. */
+  lastSeenJsonBySlotDir: Map<string, string>;
+  transitions: FindingTransitions;
+  /** The host of each live session, by session id. */
+  hostBySessionId: Map<string, WatchQosHost>;
+  nowMs: number;
+  /** When the ledger first saw a head red, in epoch milliseconds. */
+  ciRedObservedAtMs: (prReference: string, headSha: string) => number | undefined;
 }

@@ -49,7 +49,7 @@ if [ -z "$slot" ] || [ -z "$repo" ] || [ -z "$pr_number" ] || [ -z "$base_branch
     exit 2
 fi
 
-for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh pr-watch-due.sh pr-watch-floors.sh; do
+for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh pr-watch-due.sh pr-watch-floors.sh pr-watch-qos.sh; do
     if [ ! -f "${script_dir}/${lib}" ]; then
         echo "pr-watch-arm: missing ${lib} beside this script" >&2
         exit 2
@@ -274,6 +274,7 @@ if [ -n "$has_unhandled_feedback" ]; then
 fi
 watch_record_due_work "$slot" "$head_sha" "$recorded_rebase_due_key" "$ci_red_head" \
     "$due_feedback_reviews" "$due_feedback_conversation" "$due_feedback_threads"
+[ -n "$ci_red_head" ] && watch_qos_record ci-red-observed "$repo" "$pr_number" "$ci_red_head"
 
 # Claim the slot for its owner: the session --owner names, else this session.
 # The muggle watch service arms outside every session, so it passes the owner
@@ -300,6 +301,7 @@ else
     echo "pr-watch-arm: no --owner and CLAUDE_CODE_SESSION_ID unset — slot left unowned, reconcile cannot re-arm it" >&2
 fi
 
+watch_qos_record watch-armed "$repo" "$pr_number"
 echo "ARMED pr=$pr_number watermark seeded at ${slot}/watch-watermark.env"
 
 [ "$exec_loop" -eq 1 ] || exit 0

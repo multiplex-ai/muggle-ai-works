@@ -20,13 +20,10 @@ import {
 } from "@muggleai/telemetry";
 import { createUnifiedMcpServer, registerTools, startStdioServer } from "../server/index.js";
 import { resolveDisclosureCopy } from "./disclosure/disclosure-copy.js";
-import { TELEMETRY_ENVIRONMENT_BY_RUNTIME_TARGET } from "./telemetry-environment-constants.js";
-
-// Connection string is inlined at publish time via tsup `define` from the
-// APPLICATIONINSIGHTS_CONNECTION_STRING env var (set from a GitHub secret in
-// the publish workflow). Empty string in dev builds — telemetry is no-op.
-const APPLICATIONINSIGHTS_CONNECTION_STRING: string =
-  process.env.APPLICATIONINSIGHTS_CONNECTION_STRING ?? "";
+import {
+  APPLICATIONINSIGHTS_CONNECTION_STRING,
+  TELEMETRY_ENVIRONMENT_BY_RUNTIME_TARGET,
+} from "./telemetry-environment-constants.js";
 
 // Show the one-time first-run disclosure on stderr before any event fires.
 // Honors the 2026-05-05 client telemetry design: stderr is the only safe

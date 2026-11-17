@@ -90,6 +90,7 @@ export async function runLocalGenerateAsync(params: {
         showUi: args.isUiShown,
         lightMode: args.isLightMode,
         ...(args.timeoutMs !== undefined ? { timeoutMs: args.timeoutMs } : {}),
+        ...(args.priority !== undefined ? { priority: args.priority } : {}),
       },
       correlationId,
     );
@@ -151,7 +152,7 @@ function renderLocalGenerateText(generationOutcome: ILocalGenerateResult): strin
  * Exits 0 whenever a result was printed, whatever the run's status; exits 1 only when the
  * arguments are invalid or `--local` is missing.
  *
- * @param options - `--local`, `--project-id`, `--test-case-id`, `--light`, `--show-ui`, `--timeout-ms`, `--json`.
+ * @param options - `--local`, `--project-id`, `--test-case-id`, `--light`, `--show-ui`, `--timeout-ms`, `--priority`, `--json`.
  */
 export async function generateCommand(options: ILocalGenerateCommandOptions): Promise<void> {
   const commandStartedAt = Date.now();

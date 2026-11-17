@@ -19,11 +19,19 @@ import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
 import { RunEnvironmentSchema } from "../../e2e/contracts/run-environment.js";
 import { LIGHT_MODE_INPUT_DESCRIPTION } from "../../../shared/llm-tier-constants.js";
+import { STUDIO_JOB_PRIORITY_INPUT_DESCRIPTION } from "../../../shared/queue-priority/queue-priority-constants.js";
+import { StudioJobPriorityEnum } from "../../../shared/queue-priority/queue-priority-types.js";
 import { TEST_CASE_LIMIT_GUIDANCE } from "../../../shared/test-case-limit-constants.js";
 import { DisplayResolution } from "../types/enums.js";
 
 /** Resolution a run executes at, accepted wherever a caller may name one. */
 export const DisplayResolutionSchema = z.nativeEnum(DisplayResolution);
+
+/** Class a local run waits for the local Studio in, accepted by every execute tool. */
+const StudioJobPriorityInputSchema = z
+  .nativeEnum(StudioJobPriorityEnum)
+  .optional()
+  .describe(STUDIO_JOB_PRIORITY_INPUT_DESCRIPTION);
 
 /**
  * Test case details schema.
@@ -130,6 +138,8 @@ export const ExecuteTestGenerationInputSchema = z.object({
   ),
   /** Run Studio's prediction agent on the light tier. */
   lightMode: z.boolean().optional().describe(LIGHT_MODE_INPUT_DESCRIPTION),
+  /** The run's class while it waits for the local Studio. */
+  priority: StudioJobPriorityInputSchema,
 });
 
 export type ExecuteTestGenerationInput = z.infer<typeof ExecuteTestGenerationInputSchema>;
@@ -167,6 +177,8 @@ export const ExecuteReplayInputSchema = z.object({
   ),
   /** Run Studio's prediction agent on the light tier. */
   lightMode: z.boolean().optional().describe(LIGHT_MODE_INPUT_DESCRIPTION),
+  /** The run's class while it waits for the local Studio. */
+  priority: StudioJobPriorityInputSchema,
 });
 
 export type ExecuteReplayInput = z.infer<typeof ExecuteReplayInputSchema>;

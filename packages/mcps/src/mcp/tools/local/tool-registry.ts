@@ -470,6 +470,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
             displayResolution: input.displayResolution,
             runSettingsId: input.runSettingsId,
             isLightMode: input.lightMode,
+            priority: input.priority,
           }),
       });
 
@@ -553,6 +554,7 @@ const executeReplayTool: ILocalMcpTool = {
             pinnedAccount: input.pinnedAccount,
             displayResolution: input.displayResolution,
             isLightMode: input.lightMode,
+            priority: input.priority,
           }),
       });
 

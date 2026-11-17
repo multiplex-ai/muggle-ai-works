@@ -18,6 +18,7 @@ import type {
   ILocalScanCommandOptions,
   ILocalScanReport,
 } from "./local-scan-types.js";
+import { parseStudioJobPriorityOption } from "./studio-job-priority-option.js";
 import {
   listCandidatesAddedByScan,
   parseLocalScanLimits,
@@ -71,6 +72,7 @@ export async function runLocalScanAsync(options: ILocalScanCommandOptions): Prom
       targetUseCaseCandidateCount: baselineCandidateIds.size + limits.maxCandidates,
       timeoutMs: limits.timeoutMs,
       showUi: options.showUi,
+      priority: parseStudioJobPriorityOption(options.priority),
     });
 
     const addedCandidates = listCandidatesAddedByScan({

@@ -15,8 +15,18 @@ export interface ICheckoutPullRequest {
  */
 export type PullRequestLookup = (cwd: string) => Promise<ICheckoutPullRequest | null>;
 
+/** The class a Studio job is served in, highest first; the same classes the cloud dispatcher uses. */
+export enum StudioJobPriorityEnum {
+  Paid = "paid",
+  Free = "free",
+  Internal = "internal",
+  Promotion = "promotion",
+}
+
 /** A checkout's place in one of the local E2E queues, as the order reads it. */
 export interface IQueuePlace {
+  /** The class of the waiting run; absent reads as {@link StudioJobPriorityEnum.Internal}. */
+  priority?: StudioJobPriorityEnum;
   /** The open pull request the waiting checkout belongs to; absent before it has one. */
   pullRequest?: ICheckoutPullRequest | null;
   /** When the checkout first asked (ms since epoch). */

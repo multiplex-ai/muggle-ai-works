@@ -12,6 +12,8 @@ export interface ILocalScanCommandOptions {
   timeoutMs?: string;
   /** Show the Studio window. */
   showUi?: boolean;
+  /** The scan's class in the local Studio line, as typed. */
+  priority?: string;
   /** Print the one-line JSON report instead of text. */
   json?: boolean;
 }

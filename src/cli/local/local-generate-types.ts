@@ -1,3 +1,5 @@
+import type { localQa } from "@muggleai/mcp";
+
 /** Final outcome `muggle generate --local` reports for one run. */
 export enum LocalGenerateStatus {
   Passed = "passed",
@@ -20,6 +22,8 @@ export interface ILocalGenerateCommandOptions {
   showUi?: boolean;
   /** Run time limit in milliseconds, as typed. */
   timeoutMs?: string;
+  /** The run's class in the local Studio line, as typed. */
+  priority?: string;
   /** Print the result as one JSON line. */
   json?: boolean;
 }
@@ -36,6 +40,8 @@ export interface ILocalGenerateArgs {
   isUiShown: boolean;
   /** Run time limit in milliseconds; absent uses the generation default. */
   timeoutMs?: number;
+  /** The run's class in the local Studio line; absent reads as internal. */
+  priority?: localQa.StudioJobPriorityEnum;
   /** Print the result as one JSON line. */
   isJsonOutput: boolean;
 }

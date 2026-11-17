@@ -13,6 +13,7 @@ describe("parseLocalGenerateArgs", () => {
         light: true,
         showUi: true,
         timeoutMs: "600000",
+        priority: "promotion",
         json: true,
       }),
     ).toEqual({
@@ -21,6 +22,7 @@ describe("parseLocalGenerateArgs", () => {
       isLightMode: true,
       isUiShown: true,
       timeoutMs: 600000,
+      priority: "promotion",
       isJsonOutput: true,
     });
   });
@@ -42,6 +44,10 @@ describe("parseLocalGenerateArgs", () => {
     [{ local: true, projectId: "proj-1", testCaseId: "tc-1", timeoutMs: "0" }, "--timeout-ms must be a positive integer, got '0'."],
     [{ local: true, projectId: "proj-1", testCaseId: "tc-1", timeoutMs: "1.5" }, "--timeout-ms must be a positive integer, got '1.5'."],
     [{ local: true, projectId: "proj-1", testCaseId: "tc-1", timeoutMs: "abc" }, "--timeout-ms must be a positive integer, got 'abc'."],
+    [
+      { local: true, projectId: "proj-1", testCaseId: "tc-1", priority: "urgent" },
+      "--priority must be one of paid, free, internal, promotion, got 'urgent'.",
+    ],
   ])("rejects %j", (options, expectedMessage) => {
     expect(() => parseLocalGenerateArgs(options)).toThrow(expectedMessage);
   });

@@ -1,5 +1,6 @@
 import { LOCAL_FLAG_REQUIRED_MESSAGE } from "./local-generate-constants.js";
 import type { ILocalGenerateArgs, ILocalGenerateCommandOptions } from "./local-generate-types.js";
+import { parseStudioJobPriorityOption } from "./studio-job-priority-option.js";
 
 function requireNonEmptyOption(params: { value: string | undefined; flagName: string }): string {
   const trimmedValue = params.value?.trim() ?? "";
@@ -37,6 +38,7 @@ export function parseLocalGenerateArgs(options: ILocalGenerateCommandOptions): I
     isLightMode: options.light === true,
     isUiShown: options.showUi === true,
     ...(options.timeoutMs !== undefined ? { timeoutMs: parseTimeoutMs(options.timeoutMs) } : {}),
+    ...(options.priority !== undefined ? { priority: parseStudioJobPriorityOption(options.priority) } : {}),
     isJsonOutput: options.json === true,
   };
 }

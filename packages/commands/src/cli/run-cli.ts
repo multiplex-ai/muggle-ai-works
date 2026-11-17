@@ -250,6 +250,7 @@ function createProgram (): Command {
     .option("--max-candidates <n>", "Stop once the scan has found this many candidates (default 30)")
     .option("--timeout-ms <n>", "Stop the scan after this long, keeping what it found (default 1800000)")
     .option("--show-ui", "Show the Studio window")
+    .option("--priority <class>", "Class in the local Studio line: paid, free, internal (default) or promotion")
     .option("--json", "Print the report as one JSON line")
     .action(localScanCommand);
 
@@ -262,6 +263,7 @@ function createProgram (): Command {
     .option("--light", "Run the prediction agent on the light (Sonnet) tier")
     .option("--show-ui", "Show the Studio window (the showElectronBrowser preference can override)")
     .option("--timeout-ms <n>", "Run time limit in milliseconds (default: the generation default)")
+    .option("--priority <class>", "Class in the local Studio line: paid, free, internal (default) or promotion")
     .option("--json", "Print the result as one JSON line")
     .action(generateCommand);
 

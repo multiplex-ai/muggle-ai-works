@@ -15,6 +15,7 @@ vi.mock("../../../packages/mcps/src/index.js", () => ({
     executeWebsiteScan: executeWebsiteScan,
     DEFAULT_WEBSITE_SCAN_TIMEOUT_MS: 1_800_000,
     WebsiteScanExitEnum: { Completed: "completed", TimedOut: "timed_out", Failed: "failed" },
+    StudioJobPriorityEnum: { Paid: "paid", Free: "free", Internal: "internal", Promotion: "promotion" },
     getStorageService: () => ({ getSessionsDir: () => "/sessions" }),
   },
   getLogger: () => sharedLogger,
@@ -126,6 +127,25 @@ describe("runLocalScanAsync", () => {
     expect(executeWebsiteScan).not.toHaveBeenCalled();
     expect(report).toMatchObject({ status: LocalScanStatusEnum.Error, candidates: [] });
     expect(report.error).toContain("Not authenticated");
+  });
+
+  it("queues the scan in the class --priority names", async () => {
+    executeQaTool.mockResolvedValue(memoryResult(null));
+    executeWebsiteScan.mockResolvedValue({ runId: "run-5", exit: "completed", durationMs: 5, failureMessage: null });
+
+    await runLocalScanAsync({ projectId: "p-1", url: SITE_URL, priority: "promotion" });
+
+    expect(executeWebsiteScan).toHaveBeenCalledWith(expect.objectContaining({ priority: "promotion" }));
+  });
+
+  it("reports an unknown --priority as an error without starting Studio", async () => {
+    executeQaTool.mockResolvedValue(memoryResult(null));
+
+    const report = await runLocalScanAsync({ projectId: "p-1", url: SITE_URL, priority: "urgent" });
+
+    expect(executeWebsiteScan).not.toHaveBeenCalled();
+    expect(report.status).toBe(LocalScanStatusEnum.Error);
+    expect(report.error).toContain("--priority must be one of paid, free, internal, promotion");
   });
 });
 

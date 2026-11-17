@@ -25,6 +25,8 @@ export * from "./contracts/index.js";
 // Re-export services
 export * from "./services/index.js";
 
+export { StudioJobPriorityEnum } from "../../shared/queue-priority/queue-priority-types.js";
+
 // Re-export tools
 export * from "../tools/local/index.js";
 
@@ -43,14 +45,14 @@ export function getLocalQaTools(): IMcpTool[] {
     inputSchema: tool.inputSchema,
     requiresAuth: !isLocalOnlyTool(tool.name),
     execute: async (params: { input: unknown; correlationId: string }) => {
-      const result = await tool.execute({
+      const toolResult = await tool.execute({
         input: params.input,
         correlationId: params.correlationId,
       });
       return {
-        content: result.content,
-        isError: result.isError,
-        data: result.data,
+        content: toolResult.content,
+        isError: toolResult.isError,
+        data: toolResult.data,
       };
     },
   }));

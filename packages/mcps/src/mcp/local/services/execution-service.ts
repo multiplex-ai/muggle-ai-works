@@ -1276,6 +1276,7 @@ async function runReplayLocked(params: {
  * @param params.targetUseCaseCandidateCount - Memory candidate count at which Studio stops.
  * @param params.timeoutMs - Longest the scan runs before it is asked to stop.
  * @param params.showUi - Show the Studio window.
+ * @param params.priority - The scan's class in the local-execution line; absent reads as Internal.
  * @returns How the Studio process ended.
  */
 export async function executeWebsiteScan(params: {
@@ -1286,9 +1287,14 @@ export async function executeWebsiteScan(params: {
   targetUseCaseCandidateCount: number;
   timeoutMs?: number;
   showUi?: boolean;
+  priority?: StudioJobPriorityEnum;
 }): Promise<IWebsiteScanExecutionResult> {
   const timeoutMs = params.timeoutMs ?? DEFAULT_WEBSITE_SCAN_TIMEOUT_MS;
-  const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd, runTimeoutMs: timeoutMs });
+  const lockHandle = await acquireLocalExecutionLock({
+    cwd: params.cwd,
+    runTimeoutMs: timeoutMs,
+    priority: params.priority,
+  });
   try {
     return await runWebsiteScanLocked({ ...params, timeoutMs: timeoutMs });
   } finally {

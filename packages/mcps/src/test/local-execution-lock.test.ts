@@ -6,7 +6,7 @@ import * as path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ICheckoutPullRequest } from "../shared/queue-priority/queue-priority-types.js";
+import { type ICheckoutPullRequest, StudioJobPriorityEnum } from "../shared/queue-priority/queue-priority-types.js";
 
 vi.mock("../shared/logger.js", () => ({
   getLogger: () => ({
@@ -82,12 +82,17 @@ function pullRequestOpenedAt(createdAt: number): ICheckoutPullRequest {
   return { number: createdAt, url: "", createdAt: createdAt };
 }
 
-async function acquire(cwd: string, pullRequest: ICheckoutPullRequest | null = null) {
+async function acquire(
+  cwd: string,
+  pullRequest: ICheckoutPullRequest | null = null,
+  priority?: StudioJobPriorityEnum,
+) {
   const { acquireLocalExecutionLock } = await loadLockModule();
   return await acquireLocalExecutionLock({
     cwd: cwd,
     runTimeoutMs: RUN_TIMEOUT_MS,
     lookUpPullRequest: async () => pullRequest,
+    priority: priority,
   });
 }
 
@@ -201,6 +206,30 @@ describe("local-execution-lock", () => {
     await (await noPullRequest).release();
 
     expect(served).toEqual(["/worktree/older", "/worktree/newer", "/worktree/no-pr"]);
+  });
+
+  it("serves a higher class first, ahead of an older pull request of a lower one", async () => {
+    const holder = await acquire("/worktree/holder");
+    const served: string[] = [];
+    const waitFor = (cwd: string, pullRequest: ICheckoutPullRequest | null, priority?: StudioJobPriorityEnum) =>
+      acquire(cwd, pullRequest, priority).then((handle) => {
+        served.push(cwd);
+        return handle;
+      });
+
+    const promotion = waitFor("/worktree/promotion", pullRequestOpenedAt(1_000), StudioJobPriorityEnum.Promotion);
+    await waitForWaiters(1);
+    const unnamedClass = waitFor("/worktree/unnamed", pullRequestOpenedAt(3_000));
+    await waitForWaiters(2);
+    const internal = waitFor("/worktree/internal", pullRequestOpenedAt(2_000), StudioJobPriorityEnum.Internal);
+    await waitForWaiters(3);
+
+    await holder.release();
+    await (await internal).release();
+    await (await unnamedClass).release();
+    await (await promotion).release();
+
+    expect(served).toEqual(["/worktree/internal", "/worktree/unnamed", "/worktree/promotion"]);
   });
 
   it("holds a same-checkout join back while another checkout waits ahead of it", async () => {

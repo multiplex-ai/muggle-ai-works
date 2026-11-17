@@ -43,6 +43,7 @@ import {
   DEFAULT_REPLAY_TIMEOUT_MS,
   DEFAULT_WEBSITE_SCAN_TIMEOUT_MS,
 } from "./execution-timeout-constants.js";
+import type { StudioJobPriorityEnum } from "../../../shared/queue-priority/queue-priority-types.js";
 import { acquireLocalExecutionLock } from "./local-execution-lock.js";
 import { describeElectronSpawnFailure } from "./spawn-failure-message.js";
 import { resolveEffectiveFreshSession } from "./fresh-session.js";
@@ -760,6 +761,7 @@ async function executeElectronAppAsync(params: {
  * @param params.showUi - Optional flag to show electron-app UI during execution.
  * @param params.runSettingsId - Local runSettings record the cloud records the generation against.
  * @param params.isLightMode - Run Studio's prediction agent on the light tier.
+ * @param params.priority - The run's class in the local-execution line; absent reads as Internal.
  * @returns Run result with generated script info.
  */
 export async function executeTestGeneration(params: {
@@ -773,10 +775,12 @@ export async function executeTestGeneration(params: {
   displayResolution?: DisplayResolution;
   runSettingsId?: string;
   isLightMode?: boolean;
+  priority?: StudioJobPriorityEnum;
 }): Promise<ILocalRunResult> {
   const lockHandle = await acquireLocalExecutionLock({
     cwd: params.cwd,
     runTimeoutMs: params.timeoutMs ?? DEFAULT_GENERATION_TIMEOUT_MS,
+    priority: params.priority,
   });
   try {
     return await runTestGenerationLocked(params);
@@ -1047,6 +1051,7 @@ async function runTestGenerationLocked(params: {
  * @param params.timeoutMs - Optional timeout in milliseconds.
  * @param params.showUi - Optional flag to show electron-app UI during execution.
  * @param params.isLightMode - Run Studio's prediction agent on the light tier.
+ * @param params.priority - The run's class in the local-execution line; absent reads as Internal.
  * @returns Run result.
  */
 export async function executeReplay(params: {
@@ -1062,10 +1067,12 @@ export async function executeReplay(params: {
   pinnedAccount?: PinnedAccount | null;
   displayResolution?: DisplayResolution;
   isLightMode?: boolean;
+  priority?: StudioJobPriorityEnum;
 }): Promise<ILocalRunResult> {
   const lockHandle = await acquireLocalExecutionLock({
     cwd: params.cwd,
     runTimeoutMs: params.timeoutMs ?? DEFAULT_REPLAY_TIMEOUT_MS,
+    priority: params.priority,
   });
   try {
     return await runReplayLocked(params);

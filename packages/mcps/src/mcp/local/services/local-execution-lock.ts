@@ -22,7 +22,10 @@ import { getDataDir } from "../../../shared/data-dir.js";
 import { getLogger } from "../../../shared/logger.js";
 import { lookUpCheckoutPullRequest } from "../../../shared/queue-priority/pull-request-lookup.js";
 import { compareQueuePlaces } from "../../../shared/queue-priority/queue-priority.js";
-import type { PullRequestLookup } from "../../../shared/queue-priority/queue-priority-types.js";
+import type {
+  PullRequestLookup,
+  StudioJobPriorityEnum,
+} from "../../../shared/queue-priority/queue-priority-types.js";
 import {
   HOLD_OVERRUN_GRACE_MS,
   LOCK_FILE_NAME,
@@ -240,11 +243,13 @@ async function decrementHolder(params: { normalizedCwd: string; pid: number }): 
  * @param params.cwd - The caller's checkout.
  * @param params.runTimeoutMs - The run's own timeout; past it and {@link HOLD_OVERRUN_GRACE_MS}, the caller is taken as stuck.
  * @param params.lookUpPullRequest - Finds the checkout's open pull request, which ranks its place; `gh` unless a test injects its own.
+ * @param params.priority - The run's class, which ranks its place ahead of its pull request; absent reads as Internal.
  */
 export async function acquireLocalExecutionLock(params: {
   cwd: string;
   runTimeoutMs: number;
   lookUpPullRequest?: PullRequestLookup;
+  priority?: StudioJobPriorityEnum;
 }): Promise<ILocalExecutionLockHandle> {
   const normalizedCwd = normalizeCwd(params.cwd);
   const pid = process.pid;
@@ -252,6 +257,7 @@ export async function acquireLocalExecutionLock(params: {
   const caller: ILockWaiter = {
     cwd: normalizedCwd,
     pid: pid,
+    priority: params.priority,
     pullRequest: await (params.lookUpPullRequest ?? lookUpCheckoutPullRequest)(normalizedCwd),
     enqueuedAt: startWaitAt,
     lastPolledAt: startWaitAt,

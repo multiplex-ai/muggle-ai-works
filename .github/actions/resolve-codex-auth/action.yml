@@ -62,8 +62,16 @@ runs:
         pool_dir="${RUNNER_TEMP:?}/codex-auth-pool"
         login_count=0
         # A random order spreads the runs' usage across the logins instead of
-        # draining the same one first every time.
-        for secret_name in $(printf '%s\n' CODEX_AUTH_JSON CODEX_AUTH_JSON_0 CODEX_AUTH_JSON_1 | shuf); do
+        # draining the same one first every time. Shuffled in bash because
+        # macOS ships no shuf, and an empty substitution would pool nothing.
+        secret_names=(CODEX_AUTH_JSON CODEX_AUTH_JSON_0 CODEX_AUTH_JSON_1)
+        for ((unshuffled_end = ${#secret_names[@]} - 1; unshuffled_end > 0; unshuffled_end--)); do
+          picked_index=$((RANDOM % (unshuffled_end + 1)))
+          picked_name="${secret_names[picked_index]}"
+          secret_names[picked_index]="${secret_names[unshuffled_end]}"
+          secret_names[unshuffled_end]="$picked_name"
+        done
+        for secret_name in "${secret_names[@]}"; do
           login_json="${!secret_name:-}"
           [ -n "$login_json" ] || continue
           mkdir -p "$pool_dir"

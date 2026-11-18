@@ -1,10 +1,11 @@
 name: Resolve Codex auth
 description: >-
   Pick the credential the Codex evals run on: an OpenAI API key, exported as
-  CODEX_API_KEY, or up to five ChatGPT-subscription logins, written in order to
-  a private pool directory exported as CODEX_AUTH_POOL_DIR. The first login's
-  path is exported as CODEX_AUTH_FILE for seed-home.sh to copy into each Codex
-  home; the eval harnesses swap in the next login when one runs out of usage.
+  CODEX_API_KEY, or up to three ChatGPT-subscription logins, written in a
+  random order to a private pool directory exported as CODEX_AUTH_POOL_DIR. The
+  first login's path is exported as CODEX_AUTH_FILE for seed-home.sh to copy
+  into each Codex home; the eval harnesses swap in the next login when one runs
+  out of usage.
   Neither set reports not ready, so the job skips.
 
 inputs:
@@ -18,20 +19,12 @@ inputs:
       CODEX_AUTH_JSON secret. Used only when no API key is set.
     required: false
     default: ""
-  subscription-auth-json-2:
-    description: A further login, from CODEX_AUTH_JSON_2, used once the earlier ones run out.
+  subscription-auth-json-0:
+    description: A further login, from CODEX_AUTH_JSON_0.
     required: false
     default: ""
-  subscription-auth-json-3:
-    description: A further login, from CODEX_AUTH_JSON_3.
-    required: false
-    default: ""
-  subscription-auth-json-4:
-    description: A further login, from CODEX_AUTH_JSON_4.
-    required: false
-    default: ""
-  subscription-auth-json-5:
-    description: A further login, from CODEX_AUTH_JSON_5.
+  subscription-auth-json-1:
+    description: A further login, from CODEX_AUTH_JSON_1.
     required: false
     default: ""
 
@@ -54,10 +47,8 @@ runs:
       env:
         OPENAI_API_KEY_INPUT: ${{ inputs.api-key }}
         CODEX_AUTH_JSON: ${{ inputs.subscription-auth-json }}
-        CODEX_AUTH_JSON_2: ${{ inputs.subscription-auth-json-2 }}
-        CODEX_AUTH_JSON_3: ${{ inputs.subscription-auth-json-3 }}
-        CODEX_AUTH_JSON_4: ${{ inputs.subscription-auth-json-4 }}
-        CODEX_AUTH_JSON_5: ${{ inputs.subscription-auth-json-5 }}
+        CODEX_AUTH_JSON_0: ${{ inputs.subscription-auth-json-0 }}
+        CODEX_AUTH_JSON_1: ${{ inputs.subscription-auth-json-1 }}
       run: |
         set -euo pipefail
         if [ -n "$OPENAI_API_KEY_INPUT" ]; then
@@ -70,7 +61,17 @@ runs:
         fi
         pool_dir="${RUNNER_TEMP:?}/codex-auth-pool"
         login_count=0
-        for secret_name in CODEX_AUTH_JSON CODEX_AUTH_JSON_2 CODEX_AUTH_JSON_3 CODEX_AUTH_JSON_4 CODEX_AUTH_JSON_5; do
+        # A random order spreads the runs' usage across the logins instead of
+        # draining the same one first every time. Shuffled in bash because
+        # macOS ships no shuf, and an empty substitution would pool nothing.
+        secret_names=(CODEX_AUTH_JSON CODEX_AUTH_JSON_0 CODEX_AUTH_JSON_1)
+        for ((unshuffled_end = ${#secret_names[@]} - 1; unshuffled_end > 0; unshuffled_end--)); do
+          picked_index=$((RANDOM % (unshuffled_end + 1)))
+          picked_name="${secret_names[picked_index]}"
+          secret_names[picked_index]="${secret_names[unshuffled_end]}"
+          secret_names[unshuffled_end]="$picked_name"
+        done
+        for secret_name in "${secret_names[@]}"; do
           login_json="${!secret_name:-}"
           [ -n "$login_json" ] || continue
           mkdir -p "$pool_dir"

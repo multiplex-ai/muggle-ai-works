@@ -45,6 +45,8 @@ import {
 } from "./execution-timeout-constants.js";
 import type { StudioJobPriorityEnum } from "../../../shared/queue-priority/queue-priority-types.js";
 import { acquireLocalExecutionLock } from "./local-execution-lock.js";
+import { createSessionWaitLockListener, createStudioSessionScopeStdoutReader } from "./studio-session-scope-marker.js";
+import type { StudioSessionScopeStateListener } from "./studio-session-scope-types.js";
 import { describeElectronSpawnFailure } from "./spawn-failure-message.js";
 import { resolveEffectiveFreshSession } from "./fresh-session.js";
 import { readStudioBuildAsync } from "./studio-build.js";
@@ -608,6 +610,8 @@ async function executeElectronAppAsync(params: {
   timeoutMs: number;
   showUi?: boolean;
   freshSession?: boolean;
+  /** Told each session state Studio prints; a Studio that prints none never calls it. */
+  onStudioSessionScopeState?: StudioSessionScopeStateListener;
 }): Promise<IElectronExecutionResult> {
   const mode = params.runType === "replay" ? "engine" : "explore";
   const electronAppPath = requireElectronAppPath(params.electronAppPath);
@@ -686,8 +690,13 @@ async function executeElectronAppAsync(params: {
     }, params.timeoutMs);
 
     if (child.stdout) {
+      const readSessionScopeStates = params.onStudioSessionScopeState
+        ? createStudioSessionScopeStdoutReader(params.onStudioSessionScopeState)
+        : undefined;
       child.stdout.on("data", (chunk: Buffer) => {
-        processInfo.capturedStdout += chunk.toString();
+        const stdoutText = chunk.toString();
+        processInfo.capturedStdout += stdoutText;
+        readSessionScopeStates?.(stdoutText);
       });
     }
 
@@ -783,7 +792,10 @@ export async function executeTestGeneration(params: {
     priority: params.priority,
   });
   try {
-    return await runTestGenerationLocked(params);
+    return await runTestGenerationLocked({
+      ...params,
+      onStudioSessionScopeState: createSessionWaitLockListener(lockHandle),
+    });
   } finally {
     await lockHandle.release();
   }
@@ -799,6 +811,7 @@ async function runTestGenerationLocked(params: {
   displayResolution?: DisplayResolution;
   runSettingsId?: string;
   isLightMode?: boolean;
+  onStudioSessionScopeState: StudioSessionScopeStateListener;
 }): Promise<ILocalRunResult> {
   const { testCase, localUrl } = params;
   const timeoutMs = params.timeoutMs ?? DEFAULT_GENERATION_TIMEOUT_MS;
@@ -890,6 +903,7 @@ async function runTestGenerationLocked(params: {
         timeoutMs: timeoutMs,
         showUi: params.showUi,
         freshSession: effectiveFreshSession,
+        onStudioSessionScopeState: params.onStudioSessionScopeState,
       });
 
       const completedAt = Date.now();
@@ -1075,7 +1089,7 @@ export async function executeReplay(params: {
     priority: params.priority,
   });
   try {
-    return await runReplayLocked(params);
+    return await runReplayLocked({ ...params, onStudioSessionScopeState: createSessionWaitLockListener(lockHandle) });
   } finally {
     await lockHandle.release();
   }
@@ -1093,6 +1107,7 @@ async function runReplayLocked(params: {
   pinnedAccount?: PinnedAccount | null;
   displayResolution?: DisplayResolution;
   isLightMode?: boolean;
+  onStudioSessionScopeState: StudioSessionScopeStateListener;
 }): Promise<ILocalRunResult> {
   const { testScript, actionScript, localUrl } = params;
   const timeoutMs = params.timeoutMs ?? DEFAULT_REPLAY_TIMEOUT_MS;
@@ -1170,6 +1185,7 @@ async function runReplayLocked(params: {
         timeoutMs: timeoutMs,
         showUi: params.showUi,
         freshSession: params.freshSession,
+        onStudioSessionScopeState: params.onStudioSessionScopeState,
       });
 
       const completedAt = Date.now();
@@ -1296,7 +1312,11 @@ export async function executeWebsiteScan(params: {
     priority: params.priority,
   });
   try {
-    return await runWebsiteScanLocked({ ...params, timeoutMs: timeoutMs });
+    return await runWebsiteScanLocked({
+      ...params,
+      timeoutMs: timeoutMs,
+      onStudioSessionScopeState: createSessionWaitLockListener(lockHandle),
+    });
   } finally {
     await lockHandle.release();
   }
@@ -1309,6 +1329,7 @@ async function runWebsiteScanLocked(params: {
   targetUseCaseCandidateCount: number;
   timeoutMs: number;
   showUi?: boolean;
+  onStudioSessionScopeState: StudioSessionScopeStateListener;
 }): Promise<IWebsiteScanExecutionResult> {
   const runId = randomUUID();
   const startedAt = Date.now();
@@ -1335,6 +1356,7 @@ async function runWebsiteScanLocked(params: {
       authFilePath: authFilePath,
       timeoutMs: params.timeoutMs,
       showUi: params.showUi,
+      onStudioSessionScopeState: params.onStudioSessionScopeState,
     });
     await writeExecutionLogs({ runId: runId, stdout: executionResult.stdout, stderr: executionResult.stderr });
     const durationMs = Date.now() - startedAt;

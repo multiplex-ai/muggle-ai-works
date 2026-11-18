@@ -282,3 +282,85 @@ describe("local-execution-lock", () => {
     await handle.release();
   });
 });
+
+describe("local-execution-lock while Studio waits for its session", () => {
+  async function isAcquiredWithin(acquirePromise: Promise<unknown>, waitMs: number): Promise<boolean> {
+    return await Promise.race([
+      acquirePromise.then(() => true),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), waitMs)),
+    ]);
+  }
+
+  it("lets another checkout start while the only holder waits for its session", async () => {
+    const waitingRun = await acquire("/worktree/a");
+
+    await waitingRun.yieldForSessionWait();
+    const otherRun = await acquire("/worktree/b");
+
+    expect(await readLockFile()).toMatchObject({ holderCwd: normalized("/worktree/b"), holderPids: [process.pid] });
+    await otherRun.release();
+    await waitingRun.release();
+    expect(fs.existsSync(lockFilePath())).toBe(false);
+  });
+
+  it("stops counting only the waiting run among same-checkout holders", async () => {
+    const waitingRun = await acquire("/worktree/a");
+    const runningRun = await acquire("/worktree/a");
+
+    await waitingRun.yieldForSessionWait();
+
+    expect((await readLockFile()).holderPids).toEqual([process.pid]);
+    await runningRun.release();
+    await waitingRun.release();
+    expect(fs.existsSync(lockFilePath())).toBe(false);
+  });
+
+  it("counts the run again once Studio holds its session, keeping other checkouts out", async () => {
+    const waitingRun = await acquire("/worktree/a");
+    await waitingRun.yieldForSessionWait();
+
+    await waitingRun.reclaimAfterSessionWait();
+
+    expect(await readLockFile()).toMatchObject({ holderCwd: normalized("/worktree/a"), holderPids: [process.pid] });
+    const blockedRun = acquire("/worktree/c");
+    expect(await isAcquiredWithin(blockedRun, 300)).toBe(false);
+    await waitingRun.release();
+    await (await blockedRun).release();
+  });
+
+  it("counts a run resumed after another checkout took the lock beside it, until the run ends", async () => {
+    const waitingRun = await acquire("/worktree/a");
+    await waitingRun.yieldForSessionWait();
+    const otherRun = await acquire("/worktree/b");
+
+    await waitingRun.reclaimAfterSessionWait();
+
+    expect(await readLockFile()).toMatchObject({
+      holderCwd: normalized("/worktree/b"),
+      resumedHolders: [{ cwd: normalized("/worktree/a"), pid: process.pid }],
+    });
+    await otherRun.release();
+    const blockedRun = acquire("/worktree/c");
+    expect(await isAcquiredWithin(blockedRun, 300)).toBe(false);
+
+    await waitingRun.release();
+    const servedRun = await blockedRun;
+    expect(await readLockFile()).toMatchObject({ holderCwd: normalized("/worktree/c"), resumedHolders: [] });
+    await servedRun.release();
+    expect(fs.existsSync(lockFilePath())).toBe(false);
+  });
+
+  it("passes over a resumed run whose process exited", async () => {
+    writeLockFile({
+      holderCwd: "",
+      holderPids: [],
+      acquiredAt: 0,
+      resumedHolders: [{ cwd: normalized("/worktree/exited"), pid: DEAD_PID, holdDeadlineAt: Date.now() + 60_000 }],
+    });
+
+    const handle = await acquire("/worktree/fresh");
+
+    expect(await readLockFile()).toMatchObject({ holderCwd: normalized("/worktree/fresh"), resumedHolders: [] });
+    await handle.release();
+  });
+});

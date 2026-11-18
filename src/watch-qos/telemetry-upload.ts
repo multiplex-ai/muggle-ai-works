@@ -1,7 +1,6 @@
 import {
   AgentHost,
   EventName,
-  initTelemetry,
   isInitialized,
   isTelemetryEnabled,
   ServiceName,
@@ -12,6 +11,7 @@ import {
   type TelemetryEnvironment,
   type WatchQos,
 } from "@muggleai/telemetry";
+import { startClientTelemetry } from "../client-telemetry/start-client-telemetry.js";
 import type { WatchQosLedgerRecord, WatchQosPaths, WatchQosUploadDeps } from "./types.js";
 
 function telemetryValueOf<T extends Record<string, string>>(enumObject: T, value: string): T[keyof T] | undefined {
@@ -54,7 +54,7 @@ export function createTelemetryWatchQosUploadDeps(
     paths: paths,
     isTelemetryEnabled: isTelemetryEnabled,
     isTelemetryReady: () => {
-      initTelemetry({
+      startClientTelemetry({
         serviceName: ServiceName.MuggleMcp,
         surface: Surface.McpLocal,
         connectionString: connectionString,

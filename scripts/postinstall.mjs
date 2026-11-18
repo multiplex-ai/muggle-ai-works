@@ -919,7 +919,7 @@ async function extractZip(zipPath, destDir) {
                 ? `powershell -command "Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force"`
                 : `unzip -o "${zipPath}" -d "${destDir}"`;
 
-        exec(cmd, (error, stdout, stderr) => {
+        exec(cmd, { windowsHide: true }, (error, stdout, stderr) => {
             if (error) {
                 logError("Extraction command failed:", cmd);
                 logError("stdout:", stdout);
@@ -939,7 +939,7 @@ async function extractZip(zipPath, destDir) {
  */
 async function extractTarGz(tarPath, destDir) {
     return new Promise((resolve, reject) => {
-        exec(`tar -xzf "${tarPath}" -C "${destDir}"`, (error) => {
+        exec(`tar -xzf "${tarPath}" -C "${destDir}"`, { windowsHide: true }, (error) => {
             if (error) {
                 reject(error);
             } else {

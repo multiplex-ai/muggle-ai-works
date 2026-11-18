@@ -102,16 +102,27 @@ Every hook here fires on every tool call, prompt or turn end in every open sessi
 
 | Cap | Limit |
 | :-- | :-- |
-| Hook commands an irrelevant event launches per busy slot (PostToolUse on `Bash` and `Read`, Stop, UserPromptSubmit) | 1 (PreToolUse on `Bash` and PostToolUse on `PowerShell`: 0, their `if` rules launch nothing for a command naming no trigger) |
+| Hook commands an irrelevant event launches per busy slot | PostToolUse on `Bash` and `Read`: 1; Stop and UserPromptSubmit: 2, the synchronous hook and its `asyncRewake` companion; PreToolUse on `Bash` and PostToolUse on `PowerShell`: 0, their `if` rules launch nothing for a command naming no trigger |
 | A hook's own `bash` launch inside Git Bash, where `hook-entry.sh` runs the script in place | 0 (elsewhere 1 per command) |
-| Programs started beyond each hook's own launch on an irrelevant event | 0 (Stop: 1, a transcript `tail` until the capability-claim gate has nudged; bash cannot seek) |
+| Programs started beyond each hook's own launch on an irrelevant event | 0 (Stop: 2, a transcript `tail` in the synchronous run and in its companion until the capability-claim gate has nudged; bash cannot seek) |
 | `node`, `gh`, `python` on that path | 0 |
-| Median wall time of one irrelevant firing, Linux/macOS | 100 ms |
-| Distinct hook commands in the whole manifest (a command's `if` variants count once) | 13 |
+| Median wall time of one irrelevant firing | Linux/macOS 100 ms; Windows 250 ms, where each Git Bash start alone costs about 20 ms |
+| Distinct hook commands in the whole manifest (a command's `if` variants count once) | 15 |
 | Hook timeout | declared on every hook; 1 s each, 2 s summed over the hooks one firing launches, a command's `if` variants counted once since they start together and one claims the call; SessionStart 5 s each, 10 s summed |
 | Median wall time of each hook, on every scenario in `HOOK_RUNTIME_SCENARIOS`, every platform | 1 s |
 | Summed median wall time of the hooks one firing launches | 2 s |
 
+The wall-time harness fails when `bash` is not on `PATH` rather than timing hooks that never ran.
+
 Counts are exec counts, so they are identical on every runner. Every count is exact: CI fails when a change exceeds a limit, and also when it beats one until `footprint/constants.ts` is lowered to match, so a gain cannot be given back later.
 
 The harness kills a hook at its timeout, so on the per-call, per-prompt and per-turn events the 1 s timeout is the hard cap; the runtime scenarios hold each hook inside it. SessionStart fires once per session and carries the session's whole muggle context, so its hooks declare 5 s — room for a loaded machine to start bash and Node instead of dropping that context — while the scenarios still hold their runtime to 1 s. They fire every `hooks.json` group — a group no scenario fires fails CI — on its irrelevant path and on the payloads that make its gates do real work, with `gh`, `muggle`, `npm`, `npx`, `curl` and `wget` replaced by stand-ins that stall for 5 s, so a hook that waits on the network or an install fails there rather than on a user's machine. Work that has to wait on the network leaves the hook path: the walkthrough comment's reserve and settle writes and the walkthrough gate's provider scan run as detached `guardrails.mjs` background jobs, and every other child a gate starts (`git`, the dev-server probe) is cut to what is left of a 600 ms allowance (`src/hook-budget/`).
+
+## Console windows
+
+A process with no console of its own (a Codex hook on Windows, a detached job, the scheduled watch task) gives every console child it starts a fresh, visible window that takes focus from whatever the user is typing into. Two CI guards hold everything the package ships to `windowsHide: true`:
+
+| Guard | Covers |
+| :-- | :-- |
+| `src/test/guardrails/shipped-spawn-windows-hide.test.ts` | Every `child_process` call in a `package.json` `files` entry or a source bundled into `dist`, followed through aliases, `require` and `promisify`. A call that launches a GUI program goes in `ALLOWED_UNHIDDEN_SPAWNS` with its reason, since `windowsHide` would hide that program's window |
+| `src/test/guardrails/mcp-server-boot-console-free.test.ts` | A real `muggle serve` boot with telemetry on, under a preload that records every child started without `windowsHide`, dependencies included. Client telemetry starts through `startClientTelemetry`, which drops the OpenTelemetry `host` resource detector: on Windows it reads the machine id by running `REG.exe` through `cmd` |

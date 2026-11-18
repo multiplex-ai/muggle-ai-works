@@ -60,7 +60,7 @@ export async function openBrowserUrl(options: IBrowserOpenOptions): Promise<IBro
 
       logger.debug("[Browser] Opening URL", { url: options.url, command: command });
 
-      exec(command, (error) => {
+      exec(command, { windowsHide: true }, (error) => {
         if (error) {
           logger.warn("[Browser] Failed to open URL", {
             url: options.url,

@@ -7,6 +7,7 @@ import {
   NOOP_FIRING_TIMING_RUNS,
   NOOP_FORBIDDEN_PROGRAMS,
   NOOP_MEASUREMENT_TIMEOUT_MS,
+  WINDOWS_NOOP_FIRING_BUDGET_MS,
 } from "./constants.js";
 import {
   commandsForSlot,
@@ -100,22 +101,23 @@ describe("hook launches by shell", () => {
   );
 });
 
-// Spawn counts are the deterministic cap; this is the felt one. Windows runners are excluded
-// because their process start alone is in the budget's range, and the spawn caps above already
-// hold there.
-describe.skipIf(process.platform === "win32")("hook no-op path wall time", () => {
+// Spawn counts are the deterministic cap; this is the felt one. A synchronous hook holds the prompt the user just
+// typed, and Windows is where its process starts cost most, so Windows is held to its own budget, not exempted.
+const noopFiringBudgetMs = process.platform === "win32" ? WINDOWS_NOOP_FIRING_BUDGET_MS : NOOP_FIRING_BUDGET_MS;
+
+describe("hook no-op path wall time", () => {
   it.each(HOT_PATH_SLOT_CAPS.map((cap) => [slotLabel(cap), cap] as const))(
-    `%s answers an irrelevant event within ${NOOP_FIRING_BUDGET_MS}ms`,
+    `%s answers an irrelevant event within ${noopFiringBudgetMs}ms`,
     (label, cap) => {
       const batches = timeFiringBatches(
         () => timeSlotNoopFiring(manifest, cap),
         NOOP_FIRING_TIMING_RUNS,
         NOOP_FIRING_TIMING_BATCHES,
-        NOOP_FIRING_BUDGET_MS,
+        noopFiringBudgetMs,
       );
       const batchTimings = batches.map((batch) => batch.timesMs.map(Math.round).join(", ")).join(" | ");
       expect(batches.at(-1)?.medianMs, `${label} median no-op firing in every batch (runs: ${batchTimings}ms)`).toBeLessThanOrEqual(
-        NOOP_FIRING_BUDGET_MS,
+        noopFiringBudgetMs,
       );
     },
     NOOP_MEASUREMENT_TIMEOUT_MS,

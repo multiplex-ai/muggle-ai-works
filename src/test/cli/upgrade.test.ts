@@ -34,7 +34,7 @@ const cleanupMock = vi.hoisted(() => ({
 }));
 
 const childProcessMock = vi.hoisted(() => ({
-  execFile: vi.fn((_c: string, _a: string[], cb: (e: Error | null) => void) => cb(null)),
+  execFile: vi.fn((_c: string, _a: string[], _options: object, cb: (e: Error | null) => void) => cb(null)),
 }));
 const streamMock = vi.hoisted(() => ({ pipeline: vi.fn(async () => undefined) }));
 
@@ -247,7 +247,7 @@ describe("upgradeCommand", () => {
     mcpsMocks.verifyFileChecksum.mockResolvedValue({ valid: true, expected: "e", actual: "e" });
     mcpsMocks.getElectronAppReleaseTagPrefix.mockReturnValue("electron-app-v");
     cleanupMock.cleanupOldVersions.mockReturnValue({ removed: [], freedBytes: 0 });
-    childProcessMock.execFile.mockImplementation((_c, _a, cb) => cb(null));
+    childProcessMock.execFile.mockImplementation((_c, _a, _options, cb) => cb(null));
     logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     exitSpy = vi.spyOn(process, "exit").mockImplementation(((): never => undefined as never));
@@ -473,6 +473,7 @@ describe("upgradeCommand", () => {
     ]);
     await upgradeCommand({});
     expect(childProcessMock.execFile.mock.calls[0][0]).toBe("unzip");
+    expect(childProcessMock.execFile.mock.calls[0][2]).toEqual(expect.objectContaining({ windowsHide: true }));
   });
 
   it("finds the Linux executable under its electron-builder name", async () => {

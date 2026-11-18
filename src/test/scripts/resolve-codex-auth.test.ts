@@ -46,7 +46,7 @@ interface ResolveRun {
   runnerTemp: string;
 }
 
-const SUBSCRIPTION_SECRET_NAMES = ["CODEX_AUTH_JSON", "CODEX_AUTH_JSON_2", "CODEX_AUTH_JSON_3", "CODEX_AUTH_JSON_4", "CODEX_AUTH_JSON_5"];
+const SUBSCRIPTION_SECRET_NAMES = ["CODEX_AUTH_JSON", "CODEX_AUTH_JSON_0", "CODEX_AUTH_JSON_1"];
 
 function subscriptionLogin(accountId: string): string {
   return JSON.stringify({ ...JSON.parse(SUBSCRIPTION_AUTH_JSON), tokens: { refresh_token: `refresh-${accountId}`, account_id: accountId } });
@@ -99,29 +99,41 @@ describe.runIf(hasBash)("resolve-codex-auth", () => {
     expect(JSON.parse(readFileSync(exportedAuthFile as string, "utf8")).tokens.refresh_token).toBe("refresh");
   });
 
-  it("pools every set login in secret order, skipping unset ones, with the first as CODEX_AUTH_FILE", () => {
+  it("pools every set login, skipping unset ones, with the first pooled as CODEX_AUTH_FILE", () => {
     const run = runResolve({
-      subscriptionLogins: {
-        CODEX_AUTH_JSON: subscriptionLogin("first"),
-        CODEX_AUTH_JSON_3: subscriptionLogin("third"),
-        CODEX_AUTH_JSON_5: subscriptionLogin("fifth"),
-      },
+      subscriptionLogins: { CODEX_AUTH_JSON: subscriptionLogin("main"), CODEX_AUTH_JSON_1: subscriptionLogin("one") },
     });
     expect(run.exitCode).toBe(0);
-    expect(run.outputs).toContain("login-count=3");
+    expect(run.outputs).toContain("login-count=2");
     const poolDir = /^CODEX_AUTH_POOL_DIR=(.+)$/m.exec(run.exportedEnv)?.[1] as string;
     expect(poolDir).toBeDefined();
-    expect(readdirSync(poolDir).sort()).toEqual(["0.json", "1.json", "2.json"]);
-    const pooledAccounts = ["0.json", "1.json", "2.json"].map(
+    expect(readdirSync(poolDir).sort()).toEqual(["0.json", "1.json"]);
+    const pooledAccounts = ["0.json", "1.json"].map(
       (filename) => JSON.parse(readFileSync(join(poolDir, filename), "utf8")).tokens.account_id,
     );
-    expect(pooledAccounts).toEqual(["first", "third", "fifth"]);
+    expect([...pooledAccounts].sort()).toEqual(["main", "one"]);
     const exportedAuthFile = /^CODEX_AUTH_FILE=(.+)$/m.exec(run.exportedEnv)?.[1] as string;
-    expect(JSON.parse(readFileSync(exportedAuthFile, "utf8")).tokens.account_id).toBe("first");
+    expect(JSON.parse(readFileSync(exportedAuthFile, "utf8")).tokens.account_id).toBe(pooledAccounts[0]);
+  });
+
+  it("starts on a randomly picked login across runs", () => {
+    const subscriptionLogins = {
+      CODEX_AUTH_JSON: subscriptionLogin("main"),
+      CODEX_AUTH_JSON_0: subscriptionLogin("zero"),
+      CODEX_AUTH_JSON_1: subscriptionLogin("one"),
+    };
+    const startingAccounts = new Set<string>();
+    // 30 runs all starting on one login has odds of 3 * (1/3)^30.
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const run = runResolve({ subscriptionLogins: subscriptionLogins });
+      const exportedAuthFile = /^CODEX_AUTH_FILE=(.+)$/m.exec(run.exportedEnv)?.[1] as string;
+      startingAccounts.add(JSON.parse(readFileSync(exportedAuthFile, "utf8")).tokens.account_id);
+    }
+    expect(startingAccounts.size).toBeGreaterThan(1);
   });
 
   it("pools a later login even when CODEX_AUTH_JSON itself is unset", () => {
-    const run = runResolve({ subscriptionLogins: { CODEX_AUTH_JSON_2: subscriptionLogin("second") } });
+    const run = runResolve({ subscriptionLogins: { CODEX_AUTH_JSON_0: subscriptionLogin("zero") } });
     expect(run.exitCode).toBe(0);
     expect(run.outputs).toContain("login-count=1");
   });
@@ -134,10 +146,10 @@ describe.runIf(hasBash)("resolve-codex-auth", () => {
 
   it("names which pooled secret is not a codex login", () => {
     const run = runResolve({
-      subscriptionLogins: { CODEX_AUTH_JSON: SUBSCRIPTION_AUTH_JSON, CODEX_AUTH_JSON_4: '{"auth_mode":"chatgpt"}' },
+      subscriptionLogins: { CODEX_AUTH_JSON: SUBSCRIPTION_AUTH_JSON, CODEX_AUTH_JSON_1: '{"auth_mode":"chatgpt"}' },
     });
     expect(run.exitCode).toBe(1);
-    expect(run.stderr).toContain("CODEX_AUTH_JSON_4 unusable");
+    expect(run.stderr).toContain("CODEX_AUTH_JSON_1 unusable");
   });
 
   it("reports not ready with neither secret, so the job skips", () => {

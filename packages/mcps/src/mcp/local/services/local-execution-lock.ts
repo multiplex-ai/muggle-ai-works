@@ -11,6 +11,9 @@
  * A holder past its run's timeout and grace is taken as stuck and passed over,
  * so no live but unresponsive process holds every other session back.
  *
+ * A run whose Studio waits for its session stops counting until Studio holds
+ * it, so another run may start meanwhile.
+ *
  * Key identity = caller's absolute cwd. A "change" = a worktree path.
  */
 
@@ -36,11 +39,13 @@ import {
   WAIT_LOG_INTERVAL_MS,
   WAITER_ABANDON_MS,
 } from "./local-execution-lock-constants.js";
-import type {
-  ILocalExecutionLockHandle,
-  ILockState,
-  ILockWaiter,
-  ITryAcquireOutcome,
+import {
+  type ILocalExecutionLockHandle,
+  type ILockResumedHolder,
+  type ILockState,
+  type ILockWaiter,
+  type ITryAcquireOutcome,
+  LockHoldStateEnum,
 } from "./local-execution-lock-types.js";
 
 export type { ILocalExecutionLockHandle, ILockState } from "./local-execution-lock-types.js";
@@ -155,7 +160,10 @@ async function tryAcquireOnce(params: { caller: ILockWaiter; holdLimitMs: number
       (waiter) => !isCaller(waiter) && pidIsAlive(waiter.pid) && now - waiter.lastPolledAt <= WAITER_ABANDON_MS,
     );
     const holderPids = existing === null ? [] : findResponsiveHolderPids({ state: existing, now: now });
-    const isHeldByPeer = holderPids.length > 0 && existing?.holderCwd !== caller.cwd;
+    const resumedHolders = existing === null ? [] : findResponsiveResumedHolders({ state: existing, now: now });
+    const isHeldByPeer =
+      (holderPids.length > 0 && existing?.holderCwd !== caller.cwd) ||
+      resumedHolders.some((resumedHolder) => resumedHolder.cwd !== caller.cwd);
     // Waiters from the caller's own checkout share the lock with it, so only other checkouts can be ahead.
     const isPeerAhead = otherWaiters.some((waiter) => waiter.cwd !== caller.cwd && compareQueuePlaces(waiter, caller) < 0);
 
@@ -167,6 +175,7 @@ async function tryAcquireOnce(params: { caller: ILockWaiter; holdLimitMs: number
         acquiredAt: isJoining ? existing.acquiredAt : now,
         holdDeadlineAt: Math.max(isJoining ? (existing.holdDeadlineAt ?? 0) : 0, now + params.holdLimitMs),
         waiters: otherWaiters,
+        resumedHolders: resumedHolders,
       });
       return { acquired: true };
     }
@@ -174,8 +183,8 @@ async function tryAcquireOnce(params: { caller: ILockWaiter; holdLimitMs: number
     const line = [...otherWaiters, caller].sort(compareQueuePlaces);
     const blockingState: ILockState =
       existing === null || holderPids.length === 0
-        ? { holderCwd: "", holderPids: [], acquiredAt: 0, waiters: line }
-        : { ...existing, holderPids: holderPids, waiters: line };
+        ? { holderCwd: "", holderPids: [], acquiredAt: 0, waiters: line, resumedHolders: resumedHolders }
+        : { ...existing, holderPids: holderPids, waiters: line, resumedHolders: resumedHolders };
     await writeState(blockingState);
     return { acquired: false, blockingState: blockingState, position: line.findIndex(isCaller) + 1 };
   });
@@ -202,13 +211,64 @@ function findResponsiveHolderPids(params: { state: ILockState; now: number }): n
   return liveHolderPids;
 }
 
-async function decrementHolder(params: { normalizedCwd: string; pid: number }): Promise<void> {
+// A resumed run that exited or outran its deadline stops keeping other checkouts out.
+function findResponsiveResumedHolders(params: { state: ILockState; now: number }): ILockResumedHolder[] {
+  return (params.state.resumedHolders ?? []).filter(
+    (resumedHolder) => pidIsAlive(resumedHolder.pid) && params.now <= resumedHolder.holdDeadlineAt,
+  );
+}
+
+function withoutFirstMatch<T>(entries: T[], isMatch: (entry: T) => boolean): T[] {
+  const removalIndex = entries.findIndex(isMatch);
+  return removalIndex < 0 ? entries : [...entries.slice(0, removalIndex), ...entries.slice(removalIndex + 1)];
+}
+
+async function commitStateWithout(params: {
+  existing: ILockState;
+  remainingPids: number[];
+  remainingResumedHolders: ILockResumedHolder[];
+}): Promise<void> {
+  if (params.remainingPids.length > 0) {
+    await writeState({
+      ...params.existing,
+      holderPids: params.remainingPids,
+      resumedHolders: params.remainingResumedHolders,
+    });
+    return;
+  }
+  const waiters = params.existing.waiters ?? [];
+  if (waiters.length === 0 && params.remainingResumedHolders.length === 0) {
+    await deleteStateFile();
+    return;
+  }
+  await writeState({
+    holderCwd: "",
+    holderPids: [],
+    acquiredAt: 0,
+    waiters: waiters,
+    resumedHolders: params.remainingResumedHolders,
+  });
+}
+
+async function removeHolder(params: { normalizedCwd: string; pid: number; holdState: LockHoldStateEnum }): Promise<void> {
   await withModifyLock(async () => {
     const existing = await readState();
     if (existing === null) return;
+    const resumedHolders = existing.resumedHolders ?? [];
 
-    const removalIndex = existing.holderPids.indexOf(params.pid);
-    if (existing.holderCwd !== params.normalizedCwd || removalIndex < 0) {
+    if (params.holdState === LockHoldStateEnum.ResumedBesidePeer) {
+      await commitStateWithout({
+        existing: existing,
+        remainingPids: existing.holderPids,
+        remainingResumedHolders: withoutFirstMatch(
+          resumedHolders,
+          (resumedHolder) => resumedHolder.cwd === params.normalizedCwd && resumedHolder.pid === params.pid,
+        ),
+      });
+      return;
+    }
+
+    if (existing.holderCwd !== params.normalizedCwd || !existing.holderPids.includes(params.pid)) {
       getLogger().warn("Release skipped — no longer a holder; the lock passed on", {
         ourCwd: params.normalizedCwd,
         holderCwd: existing.holderCwd,
@@ -216,17 +276,90 @@ async function decrementHolder(params: { normalizedCwd: string; pid: number }): 
       return;
     }
 
-    const remainingPids = [...existing.holderPids.slice(0, removalIndex), ...existing.holderPids.slice(removalIndex + 1)];
-    if (remainingPids.length > 0) {
-      await writeState({ ...existing, holderPids: remainingPids });
-      return;
-    }
-    if ((existing.waiters ?? []).length === 0) {
-      await deleteStateFile();
-      return;
-    }
-    await writeState({ holderCwd: "", holderPids: [], acquiredAt: 0, waiters: existing.waiters });
+    await commitStateWithout({
+      existing: existing,
+      remainingPids: withoutFirstMatch(existing.holderPids, (holderPid) => holderPid === params.pid),
+      remainingResumedHolders: resumedHolders,
+    });
   });
+}
+
+/**
+ * Count a run again after its Studio session wait. It rejoins the holders when the lock is free or still its
+ * checkout's; when another checkout took the lock meanwhile, the run is already under way, so it counts beside them.
+ */
+async function reclaimHolder(params: {
+  normalizedCwd: string;
+  pid: number;
+  holdDeadlineAt: number;
+}): Promise<LockHoldStateEnum> {
+  return await withModifyLock(async (): Promise<LockHoldStateEnum> => {
+    const now = Date.now();
+    const existing = await readState();
+    const holderPids = existing === null ? [] : findResponsiveHolderPids({ state: existing, now: now });
+    const resumedHolders = existing === null ? [] : findResponsiveResumedHolders({ state: existing, now: now });
+
+    if (existing !== null && holderPids.length > 0 && existing.holderCwd !== params.normalizedCwd) {
+      await writeState({
+        ...existing,
+        holderPids: holderPids,
+        resumedHolders: [
+          ...resumedHolders,
+          { cwd: params.normalizedCwd, pid: params.pid, holdDeadlineAt: params.holdDeadlineAt },
+        ],
+      });
+      return LockHoldStateEnum.ResumedBesidePeer;
+    }
+
+    const isJoining = existing !== null && holderPids.length > 0;
+    await writeState({
+      holderCwd: params.normalizedCwd,
+      holderPids: [...holderPids, params.pid],
+      acquiredAt: isJoining ? existing.acquiredAt : now,
+      holdDeadlineAt: Math.max(isJoining ? (existing.holdDeadlineAt ?? 0) : 0, params.holdDeadlineAt),
+      waiters: existing?.waiters ?? [],
+      resumedHolders: resumedHolders,
+    });
+    return LockHoldStateEnum.Holding;
+  });
+}
+
+// Session-wait states arrive from a stream handler and release from the run's end, so each change waits for the one before.
+function createLockHandle(params: {
+  normalizedCwd: string;
+  pid: number;
+  holdDeadlineAt: number;
+}): ILocalExecutionLockHandle {
+  let holdState = LockHoldStateEnum.Holding;
+  let pendingTransition: Promise<void> = Promise.resolve();
+  const enqueueTransition = (applyTransition: () => Promise<void>): Promise<void> => {
+    pendingTransition = pendingTransition.catch(() => undefined).then(applyTransition);
+    return pendingTransition;
+  };
+  const holderIdentity = { normalizedCwd: params.normalizedCwd, pid: params.pid };
+
+  return {
+    release: () =>
+      enqueueTransition(async () => {
+        const leavingState = holdState;
+        holdState = LockHoldStateEnum.Released;
+        if (leavingState === LockHoldStateEnum.Released || leavingState === LockHoldStateEnum.YieldedForSessionWait) {
+          return;
+        }
+        await removeHolder({ ...holderIdentity, holdState: leavingState });
+      }),
+    yieldForSessionWait: () =>
+      enqueueTransition(async () => {
+        if (holdState !== LockHoldStateEnum.Holding && holdState !== LockHoldStateEnum.ResumedBesidePeer) return;
+        await removeHolder({ ...holderIdentity, holdState: holdState });
+        holdState = LockHoldStateEnum.YieldedForSessionWait;
+      }),
+    reclaimAfterSessionWait: () =>
+      enqueueTransition(async () => {
+        if (holdState !== LockHoldStateEnum.YieldedForSessionWait) return;
+        holdState = await reclaimHolder({ ...holderIdentity, holdDeadlineAt: params.holdDeadlineAt });
+      }),
+  };
 }
 
 /**
@@ -265,11 +398,10 @@ export async function acquireLocalExecutionLock(params: {
   let lastWaitLogAt = 0;
 
   while (true) {
-    const outcome = await tryAcquireOnce({ caller: caller, holdLimitMs: params.runTimeoutMs + HOLD_OVERRUN_GRACE_MS });
+    const holdLimitMs = params.runTimeoutMs + HOLD_OVERRUN_GRACE_MS;
+    const outcome = await tryAcquireOnce({ caller: caller, holdLimitMs: holdLimitMs });
     if (outcome.acquired) {
-      return {
-        release: () => decrementHolder({ normalizedCwd, pid }),
-      };
+      return createLockHandle({ normalizedCwd: normalizedCwd, pid: pid, holdDeadlineAt: Date.now() + holdLimitMs });
     }
 
     const now = Date.now();

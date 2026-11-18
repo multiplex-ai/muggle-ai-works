@@ -35,6 +35,32 @@ export interface ILockState {
   holdDeadlineAt?: number;
   /** Callers waiting, in the order they are served. Absent from state an older writer committed. */
   waiters?: ILockWaiter[];
+  /**
+   * Runs counted again after their Studio session wait while another checkout held the lock. They keep
+   * other checkouts out until they end. Absent from state an older writer committed.
+   */
+  resumedHolders?: ILockResumedHolder[];
+}
+
+/** A run counted again after its Studio session wait, beside another checkout's holders. */
+export interface ILockResumedHolder {
+  /** Normalized cwd of the run's checkout. */
+  cwd: string;
+  /** MCP server process running it. */
+  pid: number;
+  /** Past this (ms since epoch) a live run is taken as stuck and stops counting. */
+  holdDeadlineAt: number;
+}
+
+/** Where a lock handle's run counts in the lock state. */
+export enum LockHoldStateEnum {
+  /** Counted among the holders. */
+  Holding = "holding",
+  /** Its Studio waits for its session; not counted, so another run may start. */
+  YieldedForSessionWait = "yieldedForSessionWait",
+  /** Counted again after its session wait, beside another checkout that took the lock meanwhile. */
+  ResumedBesidePeer = "resumedBesidePeer",
+  Released = "released",
 }
 
 /**
@@ -44,6 +70,10 @@ export interface ILockState {
 export interface ILocalExecutionLockHandle {
   /** Release the lock. Safe to call once per acquire. */
   release: () => Promise<void>;
+  /** Stop counting the run while its Studio waits for its session, so another run may start meanwhile. */
+  yieldForSessionWait: () => Promise<void>;
+  /** Count the run again once its Studio holds its session. */
+  reclaimAfterSessionWait: () => Promise<void>;
 }
 
 /**

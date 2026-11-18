@@ -51,7 +51,11 @@ function listProcessPaths() {
               windowsHide: true,
               timeout: PROCESS_LIST_TIMEOUT_MS,
           })
-        : spawnSync("ps", ["-A", "-ww", "-o", "command="], { encoding: "utf-8", timeout: PROCESS_LIST_TIMEOUT_MS });
+        : spawnSync("ps", ["-A", "-ww", "-o", "command="], {
+              encoding: "utf-8",
+              windowsHide: true,
+              timeout: PROCESS_LIST_TIMEOUT_MS,
+          });
     if (processList.error || processList.status !== 0) {
         return null;
     }

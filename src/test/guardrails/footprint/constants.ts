@@ -66,8 +66,15 @@ const NOOP_SESSION_ID = "footprint-noop";
 /** Stands in for transcript_path; the harness swaps in a real file, since Claude Code always sends one. */
 export const NOOP_TRANSCRIPT_PLACEHOLDER = "<footprint-transcript>";
 
-/** Wall-time budget for one no-op firing of a slot, enforced on Linux and macOS runners. */
+/** Wall-time budget for one no-op firing of a slot on Linux and macOS runners. */
 export const NOOP_FIRING_BUDGET_MS = 100;
+
+/**
+ * The same budget on Windows, where every Git Bash start costs about 20ms before a hook runs a line: Stop's two
+ * commands measured near 100ms and UserPromptSubmit's near 40ms on a developer machine, so this leaves room for a
+ * slower runner yet fails a hook that grows several-fold.
+ */
+export const WINDOWS_NOOP_FIRING_BUDGET_MS = 250;
 
 /** Firings timed per batch; the batch median is compared with the budget so one noisy run cannot fail CI. */
 export const NOOP_FIRING_TIMING_RUNS = 5;

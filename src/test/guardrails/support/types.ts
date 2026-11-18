@@ -35,3 +35,19 @@ export interface UnhiddenSpawnCall {
   line: number;
   callee: string;
 }
+
+/** A child process the spawn recorder saw started without `windowsHide`. */
+export interface RecordedUnhiddenSpawn {
+  /** The child_process path it went through: `ChildProcess#spawn` or a sync function's name. */
+  entryPoint: string;
+  file: string;
+  args: string[];
+}
+
+/** A shipped call exempt from `windowsHide`, matched by repository-relative file and callee text. */
+export interface AllowedUnhiddenSpawn {
+  file: string;
+  callee: string;
+  /** Why the call cannot open a console window. */
+  reason: string;
+}

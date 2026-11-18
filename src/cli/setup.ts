@@ -113,6 +113,7 @@ async function extractZip(zipPath: string, destDir: string): Promise<void> {
       execFile(
         "powershell",
         ["-command", `Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force`],
+        { windowsHide: true },
         (error) => {
           if (error) {
             reject(error);
@@ -122,7 +123,7 @@ async function extractZip(zipPath: string, destDir: string): Promise<void> {
         },
       );
     } else {
-      execFile("unzip", ["-o", zipPath, "-d", destDir], (error) => {
+      execFile("unzip", ["-o", zipPath, "-d", destDir], { windowsHide: true }, (error) => {
         if (error) {
           reject(error);
         } else {
@@ -140,7 +141,7 @@ async function extractZip(zipPath: string, destDir: string): Promise<void> {
  */
 async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    execFile("tar", ["-xzf", tarPath, "-C", destDir], (error) => {
+    execFile("tar", ["-xzf", tarPath, "-C", destDir], { windowsHide: true }, (error) => {
       if (error) {
         reject(error);
       } else {

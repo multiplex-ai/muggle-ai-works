@@ -1,52 +1,11 @@
-import { existsSync, readFileSync } from "fs";
-import { dirname, relative, resolve } from "path";
+import { readFileSync } from "fs";
+import { relative } from "path";
 import ts from "typescript";
 import { CHILD_PROCESS_MODULES, REPO_ROOT, SPAWNING_FUNCTIONS } from "./constants.js";
 import type { UnhiddenSpawnCall } from "./types.js";
 
 function parseSource(fileName: string, sourceText: string): ts.SourceFile {
   return ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true);
-}
-
-function relativeImportTargets(sourceFile: ts.SourceFile): string[] {
-  const specifiers: string[] = [];
-  for (const statement of sourceFile.statements) {
-    const isModuleReference = ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement);
-    const specifier = isModuleReference ? statement.moduleSpecifier : undefined;
-    if (specifier && ts.isStringLiteral(specifier) && specifier.text.startsWith(".")) {
-      specifiers.push(specifier.text);
-    }
-  }
-  return specifiers;
-}
-
-// NodeNext sources import "./x.js" for a file that is "./x.ts" on disk.
-function resolveImportedFile(importerPath: string, specifier: string): string | null {
-  const imported = resolve(dirname(importerPath), specifier);
-  const asTypeScript = imported.replace(/\.js$/, ".ts");
-  if (existsSync(asTypeScript)) return asTypeScript;
-  return existsSync(imported) ? imported : null;
-}
-
-/**
- * Every file reachable from the given entry files through relative imports and re-exports.
- * @param entryFiles - Absolute paths to start from.
- * @returns Absolute paths, entries included, each once.
- */
-export function reachableSourceFiles(entryFiles: string[]): string[] {
-  const visited = new Set<string>();
-  const pending = [...entryFiles];
-  while (pending.length > 0) {
-    const filePath = pending.pop() as string;
-    if (visited.has(filePath)) continue;
-    visited.add(filePath);
-    const sourceFile = parseSource(filePath, readFileSync(filePath, "utf-8"));
-    for (const specifier of relativeImportTargets(sourceFile)) {
-      const importedFile = resolveImportedFile(filePath, specifier);
-      if (importedFile) pending.push(importedFile);
-    }
-  }
-  return [...visited];
 }
 
 function hasInlineWindowsHide(argument: ts.Expression): boolean {
@@ -59,9 +18,36 @@ function hasInlineWindowsHide(argument: ts.Expression): boolean {
   );
 }
 
+function isChildProcessRequire(expression: ts.Expression): boolean {
+  return (
+    ts.isCallExpression(expression) &&
+    ts.isIdentifier(expression.expression) &&
+    expression.expression.text === "require" &&
+    expression.arguments.length === 1 &&
+    ts.isStringLiteral(expression.arguments[0]) &&
+    CHILD_PROCESS_MODULES.includes(expression.arguments[0].text)
+  );
+}
+
+function isPromisifyCallee(callee: ts.Expression): boolean {
+  return (
+    (ts.isIdentifier(callee) && callee.text === "promisify") ||
+    (ts.isPropertyAccessExpression(callee) && callee.name.text === "promisify")
+  );
+}
+
+function forEachDescendant(root: ts.Node, onNode: (node: ts.Node) => void): void {
+  const visit = (node: ts.Node): void => {
+    onNode(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+}
+
 /**
  * child_process calls in one source whose arguments include no object literal carrying `windowsHide: true`.
- * Follows named imports under any alias and namespace or default imports of the module.
+ * Follows named imports under any alias, namespace or default imports of the module, `require` of it in either
+ * form, and `promisify` wrappers of its functions, whose callers must then pass the option themselves.
  * @param fileName - Path reported for each finding.
  * @param sourceText - The file's contents.
  * @returns One entry per offending call, in source order.
@@ -70,6 +56,17 @@ export function findUnhiddenSpawnCalls(fileName: string, sourceText: string): Un
   const sourceFile = parseSource(fileName, sourceText);
   const spawningLocalNames = new Set<string>();
   const moduleNamespaceNames = new Set<string>();
+  forEachDescendant(sourceFile, (node) => {
+    if (!ts.isVariableDeclaration(node) || !node.initializer || !isChildProcessRequire(node.initializer)) return;
+    if (ts.isIdentifier(node.name)) moduleNamespaceNames.add(node.name.text);
+    if (!ts.isObjectBindingPattern(node.name)) return;
+    for (const element of node.name.elements) {
+      const importedName = (element.propertyName ?? element.name).getText();
+      if (ts.isIdentifier(element.name) && SPAWNING_FUNCTIONS.includes(importedName)) {
+        spawningLocalNames.add(element.name.text);
+      }
+    }
+  });
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
     if (!CHILD_PROCESS_MODULES.includes(statement.moduleSpecifier.text)) continue;
@@ -92,6 +89,16 @@ export function findUnhiddenSpawnCalls(fileName: string, sourceText: string): Un
       ts.isIdentifier(callee.expression) &&
       moduleNamespaceNames.has(callee.expression.text) &&
       SPAWNING_FUNCTIONS.includes(callee.name.text));
+
+  forEachDescendant(sourceFile, (node) => {
+    if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || !node.initializer) return;
+    const initializer = node.initializer;
+    const isPromisifiedSpawner =
+      ts.isCallExpression(initializer) &&
+      isPromisifyCallee(initializer.expression) &&
+      initializer.arguments.some(isSpawningCallee);
+    if (isPromisifiedSpawner) spawningLocalNames.add(node.name.text);
+  });
 
   const unhiddenCalls: UnhiddenSpawnCall[] = [];
   const visit = (node: ts.Node): void => {

@@ -40,7 +40,7 @@ const releaseIntegrityMocks = vi.hoisted(() => ({
 vi.mock("../../../scripts/release-integrity/verifyReleaseSignature.mjs", () => releaseIntegrityMocks);
 
 const childProcessMock = vi.hoisted(() => ({
-  execFile: vi.fn((_cmd: string, _args: string[], cb: (e: Error | null) => void) => cb(null)),
+  execFile: vi.fn((_cmd: string, _args: string[], _options: object, cb: (e: Error | null) => void) => cb(null)),
 }));
 
 const streamMock = vi.hoisted(() => ({ pipeline: vi.fn(async () => undefined) }));
@@ -139,7 +139,7 @@ describe("setupCommand", () => {
     mcpsMocks.verifyFileChecksum.mockResolvedValue({ valid: true, expected: "e", actual: "e" });
     mcpsMocks.getChecksumForPlatform.mockReturnValue("expected-archive-sum");
     mcpsMocks.getElectronAppVersion.mockReturnValue("1.0.5");
-    childProcessMock.execFile.mockImplementation((_c, _a, cb) => cb(null));
+    childProcessMock.execFile.mockImplementation((_c, _a, _options, cb) => cb(null));
     releaseIntegrityMocks.verifyReleaseSignature.mockResolvedValue({
       valid: false,
       reason: "no signature bundle",
@@ -197,7 +197,12 @@ describe("setupCommand", () => {
 
     expect(fetch).toHaveBeenCalledWith("https://dl/MuggleAI.zip");
     expect(streamMock.pipeline).toHaveBeenCalledOnce();
-    expect(childProcessMock.execFile).toHaveBeenCalled();
+    expect(childProcessMock.execFile).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Array),
+      expect.objectContaining({ windowsHide: true }),
+      expect.any(Function),
+    );
     expect(fsState.written.has(META_PATH)).toBe(true);
     expect(JSON.parse(fsState.written.get(META_PATH) ?? "{}").executableChecksum).toBe("exec-checksum");
     expect(logSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("Checksum verified");
@@ -331,7 +336,7 @@ describe("setupCommand", () => {
 
   it("exits 1 when extraction itself fails", async () => {
     fsState.existing.add(EXE_PATH);
-    childProcessMock.execFile.mockImplementation((_c, _a, cb) => cb(new Error("unzip blew up")));
+    childProcessMock.execFile.mockImplementation((_c, _a, _options, cb) => cb(new Error("unzip blew up")));
     await setupCommand({ force: true });
     expect(exitSpy).toHaveBeenCalledWith(1);
   });

@@ -12,12 +12,12 @@ import {
 import {
   EventName,
   hasShownDisclosure,
-  initTelemetry,
   markDisclosureShown,
   ServiceName,
   Surface,
   track,
 } from "@muggleai/telemetry";
+import { startClientTelemetry } from "../client-telemetry/start-client-telemetry.js";
 import { createUnifiedMcpServer, registerTools, startStdioServer } from "../server/index.js";
 import { resolveDisclosureCopy } from "./disclosure/disclosure-copy.js";
 import {
@@ -74,7 +74,7 @@ export async function serveCommand (options: IServeOptions): Promise<void> {
   // Init client telemetry before any tool dispatch — no-op if not configured.
   try {
     showDisclosureIfNeeded();
-    initTelemetry({
+    startClientTelemetry({
       serviceName: ServiceName.MuggleMcp,
       surface: Surface.McpLocal,
       connectionString: APPLICATIONINSIGHTS_CONNECTION_STRING,

@@ -99,6 +99,8 @@ export function firingTimeoutSeconds(manifest: HooksManifest, slot: HookSlot, pa
 
 function runBash(script: string, env: NodeJS.ProcessEnv = process.env, input = ""): { stdout: string; stderr: string } {
   const bashRun = spawnSync("bash", ["-c", script], { input: input, encoding: "utf-8", env: env });
+  // A missing bash returns at once with nothing run, which would time and count every hook as free.
+  if (bashRun.error) throw new Error(`bash could not run the hook (${bashRun.error.message}); put Git Bash on PATH`);
   return { stdout: bashRun.stdout ?? "", stderr: bashRun.stderr ?? "" };
 }
 

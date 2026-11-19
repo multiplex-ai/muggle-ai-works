@@ -4,11 +4,13 @@ from collections import Counter
 from pathlib import Path
 
 import regression_gate
+from eval_data import resolve_routing_data_dir
+from eval_data_constants import BRAIN_DIR_ENV_VAR, EVAL_SET_FILENAME
 from gate_constants import BASELINE_FILENAME
 from gate_types import SkillGateStatus
 from scoring import THROTTLED
 
-HERE = Path(__file__).resolve().parent
+ROUTING_DATA_DIR = resolve_routing_data_dir()
 
 MUGGLE_TEST = "muggle-test"
 STEALER = "muggle-do"
@@ -291,9 +293,15 @@ class TestBaselineRecording(unittest.TestCase):
         self.assertFalse(verdict.overall_regressed)
 
 
+@unittest.skipUnless(
+    (ROUTING_DATA_DIR / EVAL_SET_FILENAME).exists(),
+    f"no routing eval data at {ROUTING_DATA_DIR}; set {BRAIN_DIR_ENV_VAR} to a muggle-ai-brain checkout",
+)
 class TestSeededBaseline(unittest.TestCase):
-    baseline = json.loads((HERE / BASELINE_FILENAME).read_text(encoding="utf-8"))
-    eval_set = json.loads((HERE / "eval-set.json").read_text(encoding="utf-8"))
+    @classmethod
+    def setUpClass(cls):
+        cls.baseline = json.loads((ROUTING_DATA_DIR / BASELINE_FILENAME).read_text(encoding="utf-8"))
+        cls.eval_set = json.loads((ROUTING_DATA_DIR / EVAL_SET_FILENAME).read_text(encoding="utf-8"))
 
     def test_every_baselined_skill_still_has_queries_in_the_eval_set(self):
         counts = Counter(q.get("expected_skill", "none") for q in self.eval_set)
@@ -302,7 +310,7 @@ class TestSeededBaseline(unittest.TestCase):
                 self.assertGreaterEqual(counts[skill], entry["total"])
 
     def test_the_gate_reads_the_committed_baseline(self):
-        loaded = regression_gate.load_baseline(HERE / BASELINE_FILENAME)
+        loaded = regression_gate.load_baseline(ROUTING_DATA_DIR / BASELINE_FILENAME)
         self.assertEqual(loaded, self.baseline["skills"])
 
 

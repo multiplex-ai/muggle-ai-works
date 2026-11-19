@@ -49,7 +49,7 @@ Codex loads the same plugin through its own manifest, hooks file, and MCP config
    - No credentials are needed.
 3. **Model-driven evals** (`.github/workflows/codex-skill-eval.yml`, nightly and on the PRs that can move them; needs the `OPENAI_API_KEY` secret; not required):
    - The routing, skill-gate and agent-gate evals run with `--host codex`. See each eval's README under `internal/`.
-   - Routing is gated against `internal/skill-routing-eval/recall-baseline.codex.json` once one is promoted.
+   - Routing is gated against `eval/skill-routing-eval/recall-baseline.codex.json` in `muggle-ai-brain` once one is promoted.
 
 To move to a new Codex release, change `CODEX_CLI_VERSION` in `ci.yml` and `codex-skill-eval.yml` together. The `codex-compat` job is what proves the new version.
 

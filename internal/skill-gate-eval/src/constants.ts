@@ -19,6 +19,15 @@ export const RESULTS_FILENAME_BY_HOST: Record<EvalHost, string> = {
   [EvalHost.Codex]: "results.codex.json",
 };
 
+/** The env var naming a muggle-ai-brain checkout, where every eval keeps its scenario data. */
+export const BRAIN_DIR_ENV_VAR = "MUGGLE_BRAIN_DIR";
+
+/** The brain checkout read when neither `--brain-dir` nor BRAIN_DIR_ENV_VAR names one: a sibling of this checkout. */
+export const DEFAULT_BRAIN_DIR = "../muggle-ai-brain";
+
+/** Where the gate scenarios sit in a brain checkout, as path segments. */
+export const GATE_SCENARIOS_BRAIN_SUBPATH = ["eval", "skill-gate-eval"];
+
 /** Default eval target — used when a skill leaves `model:` unset (inherits the session model). */
 export const DEFAULT_MODEL = "claude-sonnet-4-6";
 

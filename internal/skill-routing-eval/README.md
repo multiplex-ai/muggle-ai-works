@@ -5,10 +5,10 @@ Measures whether each muggle skill's `description` (its "entrance") routes the r
 ## Files
 
 - `entrances.md` — the trigger contract per skill: when to engage, and the sibling boundary it must not cross.
-- `eval-set.json` — labeled queries `{query, expected_skill, note}`. `expected_skill` is `none` for negative/near-miss queries that must not route to any muggle skill.
+- `eval-set.json` — labeled queries `{query, expected_skill, note}`. `expected_skill` is `none` for negative/near-miss queries that must not route to any muggle skill. Lives in `muggle-ai-brain/eval/skill-routing-eval/`.
 - `router_eval.py` — the real-router harness.
 - `analyze.py` — turns a router run into a report and into per-skill signal for the optimizer.
-- `recall-baseline.json` — per-skill recall recorded from a full sweep on master; what the CI gate compares a run against. Under Codex, `recall-baseline.codex.json` once one is promoted.
+- `recall-baseline.json` — per-skill recall recorded from a full sweep on master; what the CI gate compares a run against. Under Codex, `recall-baseline.codex.json` once one is promoted. Both live beside `eval-set.json` in `muggle-ai-brain`.
 - `codex_session.py` — the Codex sessions (`--host codex`): runs one, ends it at its route, and prepares the Codex home they run in (`codex_constants.py`, `codex_route_tracer.mjs`).
 - `seed_eval_cwd.sh` — the small changed web app both hosts' CI jobs route in.
 - `regression_gate.py` — the gate: judges a run against that baseline inside a noise band (`gate_types.py`, `gate_constants.py`).
@@ -49,6 +49,8 @@ python internal/skill-routing-eval/run.py --skill muggle-status   # one skill
 python internal/skill-routing-eval/run.py --all --sync-cache      # see below
 ```
 
+The eval set and baselines are read from the `muggle-ai-brain` checkout `--brain-dir` names, else `MUGGLE_BRAIN_DIR`, else `../muggle-ai-brain`.
+
 Output lands in `reports/run/` (`combined.json` + `combined.md`, plus `chunk_pooled.json` and a per-skill `chunk_*.json` for any skill the guard re-ran). `run.py` plans every selected skill's queries into **one** `claude -p` batch `--workers` wide, so no worker idles while a skill's tail drains — the sequential per-skill batches this replaced left the pool draining once per skill. Skill identity is carried on each result row, so grouping and the guard are a partition of the pooled run. A positive skill that comes back all-`none` (the disconnect signature) is re-run alone in a fresh subprocess up to 3× and flagged inconclusive if it stays empty; isolating the retry is what makes a pooled sweep as recoverable as per-skill batches were. A run that fails with a rate-limit signature retries up to 3× with exponential backoff shared across the worker pool (`throttle.py`), and exhausted retries score as `THROTTLED` rather than a silent `none` — which is what makes the default of 12 workers safe. Pooling also makes that backoff genuinely global: a separate subprocess per skill previously gave each chunk its own gate.
 
 **`--sync-cache`:** the harness routes via the *installed* muggle plugin, not the working tree. When you've edited a `SKILL.md` description but not reinstalled, `claude -p` sees both the cached copy and the bare-name working-tree skill and results are unreliable. `--sync-cache` copies `plugin/skills/*/SKILL.md` over the installed cache first (auto-detected from `~/.claude/plugins/installed_plugins.json`) so the eval tests your edits. Always pass it when validating a description change.
@@ -70,16 +72,17 @@ refactor that touches no `SKILL.md`).
 
 - `--skills a,b` — run a subset (CI derives it from the PR's changed `plugin/skills/*/SKILL.md`).
 - `--gate` — compare the run against `recall-baseline.json`; exit non-zero on a regression, a collapse, or a sweep where no chunk could be verified. Off by default, so dev runs stay informational. CI passes it in both modes.
-- `--baseline PATH` — the recorded baseline to compare against (default: `recall-baseline.json` beside the runner).
+- `--baseline PATH` — the recorded baseline to compare against (default: `recall-baseline.json` in the brain checkout's `eval/skill-routing-eval/`).
+- `--brain-dir PATH` — the `muggle-ai-brain` checkout holding `eval-set.json` and the baselines (default: `MUGGLE_BRAIN_DIR`, then `../muggle-ai-brain`).
 - `--record-baseline PATH` — write this run's per-skill tallies for a human to promote. Full sweeps only; a scoped run would drop every skill it did not measure.
 - `--control-config-dir DIR` — a Claude config dir with the base ref's plugin installed. A failing gate re-measures its failing skills against it before it fails (see [Confirmation](#confirmation)). CI passes it on scoped runs.
 - `router_eval.py --probe "<query>"` — route one query and print the result; CI uses it to fail fast when the plugin didn't load.
 
-CI installs the plugin from the PR checkout (`claude plugin marketplace add "$GITHUB_WORKSPACE"`), so it tests the PR's descriptions rather than master — no `--sync-cache` needed. Requires the `CLAUDE_CODE_OAUTH_TOKEN` repo secret (subscription auth from `claude setup-token`, not a pay-per-use API key). Set the optional `CLAUDE_CODE_OAUTH_TOKEN_2` secret to a spare token and the job falls back to it for that run when the primary is rejected or throttled, with a workflow warning.
+CI installs the plugin from the PR checkout (`claude plugin marketplace add "$GITHUB_WORKSPACE"`), so it tests the PR's descriptions rather than master — no `--sync-cache` needed. It checks out `muggle-ai-brain`'s `main` for the eval set and baseline, so a change to either takes effect once it merges there, and runs `test_regression_gate.py` against them first — `ci.yml` has no brain checkout, so there the tests that read them are skipped. Requires the `BRAIN_DEPLOY_KEY` repo secret (see `../skill-gate-eval/README.md`) and the `CLAUDE_CODE_OAUTH_TOKEN` repo secret (subscription auth from `claude setup-token`, not a pay-per-use API key). Set the optional `CLAUDE_CODE_OAUTH_TOKEN_2` secret to a spare token and the job falls back to it for that run when the primary is rejected or throttled, with a workflow warning.
 
 ### Codex (not blocking)
 
-`.github/workflows/codex-skill-eval.yml` runs the same eval with `--host codex`, on the same schedule and the same PR scoping. It also runs a full sweep when a PR changes what only Codex reads: its plugin manifest and marketplace, its hooks and MCP config, or a skill's `agents/openai.yaml`. It needs the `OPENAI_API_KEY` repo secret, which it hands Codex as `CODEX_API_KEY`. Without that secret the job posts a notice and passes. It is not a required check. Until `recall-baseline.codex.json` is committed, a run reports recall without gating it, and only the preflight can fail it. Each full sweep uploads its tallies as the `codex-routing-recall-baseline` artifact. Promote one the same way as below, and the job gates against it from then on.
+`.github/workflows/codex-skill-eval.yml` runs the same eval with `--host codex`, on the same schedule and the same PR scoping. It also runs a full sweep when a PR changes what only Codex reads: its plugin manifest and marketplace, its hooks and MCP config, or a skill's `agents/openai.yaml`. It needs `BRAIN_DEPLOY_KEY` and the `OPENAI_API_KEY` repo secret, which it hands Codex as `CODEX_API_KEY`. Without that secret the job posts a notice and passes. It is not a required check. Until `recall-baseline.codex.json` is committed, a run reports recall without gating it, and only the preflight can fail it. Each full sweep uploads its tallies as the `codex-routing-recall-baseline` artifact. Promote one the same way as below, and the job gates against it from then on.
 
 ## Regression gate
 
@@ -134,10 +137,10 @@ A confirmation sweep costs about twice a first sweep, and it only runs when the 
 The full sweep writes `reports/run/recall-baseline.candidate.json`, and CI uploads it as the `routing-recall-baseline` artifact. Nothing commits it; a human promotes it:
 
 1. `gh run download <run-id> -n routing-recall-baseline` from a full sweep that finished cleanly.
-2. Copy it over `internal/skill-routing-eval/recall-baseline.json` and read the diff — a skill that moved should have a reason.
+2. Copy it over `eval/skill-routing-eval/recall-baseline.json` in `muggle-ai-brain` and read the diff — a skill that moved should have a reason.
 3. Commit it on its own.
 
-Locally the same thing is `python internal/skill-routing-eval/run.py --all --record-baseline internal/skill-routing-eval/recall-baseline.json`.
+Locally the same thing is `python internal/skill-routing-eval/run.py --all --record-baseline ../muggle-ai-brain/eval/skill-routing-eval/recall-baseline.json`.
 
 Re-record after anything that shifts measured accuracy across the board (a harness change to what the router sees, a model change), not after each description edit — that is exactly the movement the gate exists to catch.
 

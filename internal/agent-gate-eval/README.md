@@ -29,6 +29,8 @@ Every scenario file names one `target`: `{ "kind": "agent" | "skill", "name": "<
 
 ## Run
 
+The scenario suites live in `muggle-ai-brain/eval/agent-gate-eval/scenarios/`. The runner reads the brain checkout `--brain-dir` names, else `MUGGLE_BRAIN_DIR`, else `../muggle-ai-brain`; `--scenarios-dir <dir>` reads suites from any other directory.
+
 ```bash
 pnpm run test:agents:behavioral                                    # every scenario file
 pnpm run test:agents:behavioral -- --suite test-prepare-runner --runs 5
@@ -36,7 +38,7 @@ pnpm run test:agents:behavioral -- --suite visual-walkthrough-builder --runs 5 -
 pnpm run test:agents:behavioral -- --suite muggle-do.handoff --cadence pr --model claude-opus-5-5
 ```
 
-`--suite <stem>` names one file; `--agent <name>` is the same but refuses a skill target. `--cadence pr` drops `cadence: "nightly"` scenarios. `--concurrency N` (or `AGENT_GATE_EVAL_CONCURRENCY`) bounds parallel reps across all suites. Each suite's results land in `scenarios/<stem>.results.json`; exit 0 iff every scenario's pass rate meets its file's `passThreshold` (default `PASS_THRESHOLD`).
+`--suite <stem>` names one file; `--agent <name>` is the same but refuses a skill target. `--cadence pr` drops `cadence: "nightly"` scenarios. `--concurrency N` (or `AGENT_GATE_EVAL_CONCURRENCY`) bounds parallel reps across all suites. Each suite's results land beside its scenario file, in `<stem>.results.json` (ignored by the brain repo); exit 0 iff every scenario's pass rate meets its file's `passThreshold` (default `PASS_THRESHOLD`).
 
 ## Under Codex
 
@@ -56,11 +58,11 @@ CODEX_API_KEY=... pnpm run test:agents:behavioral -- --agent test-prepare-runner
 - Codex ignores an agent's `model:` pin, so reps run Codex's default model unless `--model` names one.
 - `--codex-home <dir>` and `--codex-config key=value` work as in `../skill-gate-eval`. `MUGGLE_CODEX_SANDBOX` overrides the sandbox on a machine where Codex cannot start its own.
 
-Results land in `scenarios/<stem>.codex.results.json`. The plumbing runs against the real Codex CLI and a scripted model in `src/test/codex/codex-agent-eval.test.ts` (CI's `codex-compat`), and the hook's rules are unit-tested in `test/codex-harness.test.ts`. CI: the `codex-agent-gate-eval` job in `.github/workflows/codex-skill-eval.yml`, scoped like `agent-gate-eval` plus the shared Codex plumbing. It needs the `OPENAI_API_KEY` secret, posts a notice and passes without it, and is not a required check.
+Results land in `<stem>.codex.results.json`, beside the scenario file. The plumbing runs against the real Codex CLI and a scripted model in `src/test/codex/codex-agent-eval.test.ts` (CI's `codex-compat`), and the hook's rules are unit-tested in `test/codex-harness.test.ts`. CI: the `codex-agent-gate-eval` job in `.github/workflows/codex-skill-eval.yml`, scoped like `agent-gate-eval` plus the shared Codex plumbing. It needs the `OPENAI_API_KEY` secret and `BRAIN_DEPLOY_KEY` (see `../skill-gate-eval/README.md`), posts a notice and passes without either, and is not a required check.
 
 ## Scenarios
 
-`scenarios/<target>.json`, or `scenarios/<target>.<suite>.json` for a second suite on one target:
+In `muggle-ai-brain/eval/agent-gate-eval/`: `scenarios/<target>.json`, or `scenarios/<target>.<suite>.json` for a second suite on one target:
 
 ```json
 {
@@ -88,9 +90,9 @@ Results land in `scenarios/<stem>.codex.results.json`. The plumbing runs against
 
 `expect` supports `outputContains` / `outputMatches` / `outputNotContains` / `outputNotMatches` (regex sources), `requireToolAttempts` / `forbidToolAttempts`, `requireToolSequence` (those patterns in order, other attempts allowed between), `requireToolSequences` (several such orders, each checked on its own — a stage's file read before its action, for every stage, without one fixed order across stages), `requireLastAmong` (`{among, last, unless?}`: the latest attempt `among` matches must match `last` — e.g. of a cycle's pushes, replies, skip declarations and arms, the last is the watcher arm; an attempt matching `unless` and not `last`, such as a session note quoting `git push`, is passed over), `requireArtifacts` (`{path, contains?, matches?}`: a sandbox file, or a recorded Write or Bash attempt naming the path — Bash never runs, so `cat > prs.json` writes nothing; `matches` is a regex source, for where a value sits in the file rather than only that it appears), `forbidAskUserQuestion`, and `maxAskUserQuestions` (the most questions a flow may ask — one for muggle-do's single pre-flight questionnaire; set, it replaces `forbidAskUserQuestion`). A tool-attempt pattern is `{tool, argContains}`, matched against the serialized input — `argContains` a substring, or a list it must carry every one of — or `{anyOf: [...]}`, met by any one alternative, for an action the instructions allow more than one way.
 
-A file may also carry `defaults`, applied to each scenario (its own `prompt`, `seed` and `maxTurns` win; `preferences` and `fixtures` merge over the default's; its `bashResponses` and `toolResponses` entries go first, so they win the first match), and `patterns`, named patterns an expectation uses as `{ "pattern": "<name>" }`. Scenario files live in-repo (unlike skill-gate-eval's brain-hosted data) because the contracts they gate are in this repo; `agent-contracts.test.ts` enforces that every execution agent has scenarios and every file targets an agent or skill that exists, and `test/transcript.test.ts` materializes every shipped transcript.
+A file may also carry `defaults`, applied to each scenario (its own `prompt`, `seed` and `maxTurns` win; `preferences` and `fixtures` merge over the default's; its `bashResponses` and `toolResponses` entries go first, so they win the first match), and `patterns`, named patterns an expectation uses as `{ "pattern": "<name>" }`. Scenario files live in `muggle-ai-brain`, like skill-gate-eval's; the fixture repos they seed stay here in `fixtures/`. `agent-contracts.test.ts` enforces that every execution agent has scenarios and every file targets an agent or skill that exists, and `test/transcript.test.ts` materializes every shipped transcript. Those tests, and the others that load a shipped suite, read the brain checkout `MUGGLE_BRAIN_DIR` names (default `../muggle-ai-brain`) and are skipped, with the reason in the suite title, when it has no scenarios directory. `ci.yml` has no brain checkout, so the `agent-gate-eval` job runs them before its eval.
 
-CI, in `.github/workflows/skill-eval.yml`:
+CI, in `.github/workflows/skill-eval.yml`. Both jobs check out `muggle-ai-brain`'s `main` with `BRAIN_DEPLOY_KEY`, so a scenario change takes effect once it merges there and is first exercised by the nightly:
 
 - `agent-gate-eval` (required) runs the agent suites — scoped to PRs touching `plugin/agents/`, this package, or the dispatching skills; full on nightly/dispatch/`run-full-eval`. It skips skill suites.
-- `muggle-do-eval` (not required yet) runs the skill suites at `--cadence pr` with `MUGGLE_DO_EVAL_RUNS` reps (3), each suite only on a PR touching its paths, its scenario file, or the harness: `muggle-pr-followup.tick` on `muggle-pr-followup/`, `_shared/pr-followup-helpers/`, `_shared/vcs/` or the `pr-watch-*` scripts; every other suite on those or `muggle-do/`, `do/`. Every scenario runs at 5 reps on nightly, dispatch and `run-full-eval`. Suites scoped out print `MUGGLE_DO_RUNS_SCOPED: <runs skipped>`.
+- `muggle-do-eval` (not required yet) runs the skill suites at `--cadence pr` with `MUGGLE_DO_EVAL_RUNS` reps (3), each suite only on a PR touching its paths or the harness: `muggle-pr-followup.tick` on `muggle-pr-followup/`, `_shared/pr-followup-helpers/`, `_shared/vcs/` or the `pr-watch-*` scripts; every other suite on those or `muggle-do/`, `do/`. Every scenario runs at 5 reps on nightly, dispatch and `run-full-eval`. Suites scoped out print `MUGGLE_DO_RUNS_SCOPED: <runs skipped>`, or `MUGGLE_DO_RUNS_SCOPED: all` when the PR touches no suite's paths.

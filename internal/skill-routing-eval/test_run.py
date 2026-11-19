@@ -9,6 +9,8 @@ from pathlib import Path
 from unittest import mock
 
 import run
+from eval_data import resolve_routing_data_dir
+from eval_data_constants import BRAIN_DIR_ENV_VAR, EVAL_SET_FILENAME
 from gate_constants import BASELINE_FILENAME, CODEX_BASELINE_FILENAME
 from pool_constants import ARM_FIELD, CLAUDE_CONFIG_DIR_FIELD
 from pool_types import SweepArm
@@ -26,6 +28,22 @@ def _main(argv: list[str]) -> tuple[int | None, str]:
     return code, err.getvalue()
 
 
+CONFIRMED_SKILL = "muggle-status"
+CONFIRMED_SKILL_QUERY_COUNT = 25
+
+
+def seed_routing_data(brain_dir: Path) -> Path:
+    """Give `brain_dir` an eval set of CONFIRMED_SKILL queries; returns the routing data dir it sits in."""
+    routing_data_dir = resolve_routing_data_dir(str(brain_dir))
+    routing_data_dir.mkdir(parents=True)
+    queries = [
+        {"query": f"is muggle working? (phrasing {index})", "expected_skill": CONFIRMED_SKILL, "note": ""}
+        for index in range(CONFIRMED_SKILL_QUERY_COUNT)
+    ]
+    (routing_data_dir / EVAL_SET_FILENAME).write_text(json.dumps(queries), encoding="utf-8")
+    return routing_data_dir
+
+
 class TestRunChunkHost(unittest.TestCase):
     def test_the_router_runs_under_the_requested_host(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -40,18 +58,20 @@ class TestRunChunkHost(unittest.TestCase):
 class TestCodexRunsKeepTheirOwnRecords(unittest.TestCase):
     def test_a_codex_run_reports_and_gates_apart_from_claude(self):
         self.assertNotEqual(run.OUT_DIR_BY_HOST[Host.CODEX], run.OUT_DIR_BY_HOST[Host.CLAUDE])
-        self.assertEqual(run.BASELINE_BY_HOST[Host.CLAUDE].name, BASELINE_FILENAME)
-        self.assertEqual(run.BASELINE_BY_HOST[Host.CODEX].name, CODEX_BASELINE_FILENAME)
+        self.assertEqual(run.BASELINE_FILENAME_BY_HOST[Host.CLAUDE], BASELINE_FILENAME)
+        self.assertEqual(run.BASELINE_FILENAME_BY_HOST[Host.CODEX], CODEX_BASELINE_FILENAME)
 
     def test_a_codex_gate_with_no_codex_baseline_fails_instead_of_borrowing_claude_s(self):
-        passing = {"results": [{"query": "q", "expected_skill": "muggle-status", "fired": ["muggle-status"],
-                                "none_reasons": {}, "majority": "muggle-status", "pass": True, "note": ""}]}
-        with tempfile.TemporaryDirectory() as tmp:
-            missing = Path(tmp) / CODEX_BASELINE_FILENAME
-            baselines = {**run.BASELINE_BY_HOST, Host.CODEX: missing}
-            with mock.patch.object(run, "run_chunk", return_value=passing) as chunk, \
-                    mock.patch.object(run, "BASELINE_BY_HOST", baselines):
-                code, printed = _main(["--skill", "muggle-status", "--host", "codex", "--gate", "--out-dir", tmp, "--runs", "1"])
+        passing = {"results": [{"query": "q", "expected_skill": CONFIRMED_SKILL, "fired": [CONFIRMED_SKILL],
+                                "none_reasons": {}, "majority": CONFIRMED_SKILL, "pass": True, "note": ""}]}
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as brain_dir:
+            routing_data_dir = seed_routing_data(Path(brain_dir))
+            claude_baseline = {"skills": {CONFIRMED_SKILL: {"passed": 1, "total": 1}}}
+            (routing_data_dir / BASELINE_FILENAME).write_text(json.dumps(claude_baseline), encoding="utf-8")
+            missing = routing_data_dir / CODEX_BASELINE_FILENAME
+            with mock.patch.object(run, "run_chunk", return_value=passing) as chunk:
+                code, printed = _main(["--skill", CONFIRMED_SKILL, "--host", "codex", "--gate", "--out-dir", tmp,
+                                       "--runs", "1", "--brain-dir", brain_dir])
             self.assertEqual(chunk.call_args.args[-1], Host.CODEX)
             combined = json.loads((Path(tmp) / "combined.json").read_text(encoding="utf-8"))
         self.assertEqual(code, 1)
@@ -68,16 +88,18 @@ class TestCodexRunsKeepTheirOwnRecords(unittest.TestCase):
         prepare.assert_not_called()
 
     def test_syncing_a_codex_run_reinstalls_the_plugin_from_this_checkout(self):
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"CODEX_HOME": tmp}), \
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as brain_dir, \
+                mock.patch.dict(os.environ, {"CODEX_HOME": tmp}), \
                 mock.patch.object(run.codex_session, "prepare_codex_home") as prepare, \
                 mock.patch.object(run, "has_no_coverage", return_value=True):
-            code, _printed = _main(["--skill", "muggle-do", "--host", "codex", "--sync-cache", "--out-dir", tmp])
+            seed_routing_data(Path(brain_dir))
+            code, _printed = _main(["--skill", "muggle-do", "--host", "codex", "--sync-cache", "--out-dir", tmp,
+                                    "--brain-dir", brain_dir])
         self.assertIsNone(code)
         codex_home, _codex_bin, checkout = prepare.call_args.args
         self.assertEqual((codex_home, checkout), (Path(tmp), run.REPO_ROOT))
 
 
-CONFIRMED_SKILL = "muggle-status"
 RUNS_PER_QUERY = 5
 
 
@@ -127,13 +149,29 @@ class ScriptedChunks:
         return {"results": rows}
 
 
+class TestEvalDataLocation(unittest.TestCase):
+    def test_a_run_with_no_eval_set_says_where_it_looked(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as brain_dir, \
+                mock.patch.object(run, "run_chunk") as chunk:
+            code, printed = _main(["--all", "--out-dir", tmp, "--brain-dir", brain_dir])
+        self.assertEqual(code, 2)
+        self.assertIn(str(resolve_routing_data_dir(brain_dir) / EVAL_SET_FILENAME), printed)
+        chunk.assert_not_called()
+
+    def test_the_brain_checkout_comes_from_the_flag_then_the_environment(self):
+        with mock.patch.dict(os.environ, {BRAIN_DIR_ENV_VAR: "env-brain"}):
+            self.assertEqual(resolve_routing_data_dir("flag-brain").parts[0], "flag-brain")
+            self.assertEqual(resolve_routing_data_dir().parts[0], "env-brain")
+
+
 class TestConfirmationAgainstTheBaseRef(unittest.TestCase):
     def _gate(self, chunks: ScriptedChunks, control_config_dir: str | None) -> tuple[int | None, str, str]:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as brain_dir:
+            seed_routing_data(Path(brain_dir))
             baseline = Path(tmp) / "baseline.json"
             baseline.write_text(json.dumps({"skills": {CONFIRMED_SKILL: {"passed": 24, "total": 24}}}), encoding="utf-8")
             argv = ["--skill", CONFIRMED_SKILL, "--gate", "--baseline", str(baseline), "--out-dir", tmp,
-                    "--runs", str(RUNS_PER_QUERY)]
+                    "--runs", str(RUNS_PER_QUERY), "--brain-dir", brain_dir]
             if control_config_dir:
                 argv += ["--control-config-dir", control_config_dir]
             with mock.patch.object(run, "run_chunk", side_effect=chunks):

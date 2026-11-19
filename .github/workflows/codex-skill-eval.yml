@@ -75,7 +75,8 @@ jobs:
       # A fresh Codex home, holding only the plugin and the eval's route tracer.
       CODEX_HOME: ${{ github.workspace }}/.codex-home
       CLEAN_CWD: ${{ github.workspace }}/.clean-cwd
-      CODEX_BASELINE: internal/skill-routing-eval/recall-baseline.codex.json
+      MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
+      CODEX_BASELINE: ${{ github.workspace }}/muggle-ai-brain/eval/skill-routing-eval/recall-baseline.codex.json
       BASELINE_CANDIDATE: ${{ github.workspace }}/internal/skill-routing-eval/reports/run-codex/recall-baseline.candidate.json
     steps:
       - name: Checkout works
@@ -143,20 +144,42 @@ jobs:
         if: steps.scope.outputs.should_run == 'true' && steps.auth.outputs.ready != 'true'
         run: echo "::notice title=Codex routing eval skipped::Set the OPENAI_API_KEY or CODEX_AUTH_JSON repo secret to run the skill-routing eval under Codex."
 
-      - name: Setup Node.js
+      # The eval set and Codex's recorded baseline live in muggle-ai-brain.
+      - name: Check for the scenario repo deploy key
+        id: brain
         if: steps.auth.outputs.ready == 'true'
+        env:
+          BRAIN_DEPLOY_KEY: ${{ secrets.BRAIN_DEPLOY_KEY }}
+        run: |
+          if [ -n "$BRAIN_DEPLOY_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Codex routing eval skipped::Set BRAIN_DEPLOY_KEY, which skill-gate-eval already uses, to run the routing eval under Codex."
+          fi
+
+      - name: Checkout scenario data (muggle-ai-brain)
+        if: steps.brain.outputs.ready == 'true'
+        uses: actions/checkout@v6
+        with:
+          repository: multiplex-ai/muggle-ai-brain
+          ssh-key: ${{ secrets.BRAIN_DEPLOY_KEY }}
+          path: muggle-ai-brain
+
+      - name: Setup Node.js
+        if: steps.brain.outputs.ready == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: "22"
 
       - name: Setup Python
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install Codex CLI
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: |
           npm install -g "@openai/codex@${CODEX_CLI_VERSION}"
           codex --version
@@ -165,7 +188,7 @@ jobs:
       # into a Codex home that holds nothing else; the same step adds the hook
       # that traces each session's tool calls.
       - name: Install muggle plugin from this checkout
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: |
           set -euo pipefail
           mkdir -p "$CODEX_HOME" "$CLEAN_CWD"
@@ -178,7 +201,7 @@ jobs:
       # Same reason as skill-routing-eval: with no preferences file the
       # SessionStart hook has the session offer onboarding instead of routing.
       - name: Mark Muggle onboarding done so the probe is not diverted
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.muggle-ai"
@@ -187,7 +210,7 @@ jobs:
           JSON
 
       - name: Seed the eval cwd with a changed web app
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: bash internal/skill-routing-eval/seed_eval_cwd.sh "$CLEAN_CWD"
 
       # A read-only sandbox is the closest match to the Claude session, which
@@ -196,7 +219,7 @@ jobs:
       # sandbox still cannot start, run unsandboxed rather than let every shell
       # call fail — sessions are ended at their first route either way.
       - name: Start Codex's sandbox
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           if codex sandbox -- true; then
@@ -208,7 +231,7 @@ jobs:
 
       - name: Preflight — confirm the plugin actually routes
         id: preflight
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: |
           set -euo pipefail
           # As in skill-routing-eval: up to PREFLIGHT_ATTEMPTS probes, passing on
@@ -239,33 +262,33 @@ jobs:
           echo "Preflight failed: '$route' on all ${PREFLIGHT_ATTEMPTS:-3} attempts. Plugin not loaded, key rejected, or probe session broken." >&2
           exit 1
 
-      # Gated against Codex's own recorded recall once one is committed; until
+      # Gated against Codex's own recorded recall once one is committed to muggle-ai-brain; until
       # then the sweep reports and proposes the first baseline, and the preflight
       # is what fails a Codex that does not route at all.
       - name: Run routing eval
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: |
           set -euo pipefail
           gate=()
           if [ -f "$CODEX_BASELINE" ]; then
             gate=(--gate)
           else
-            echo "::notice title=Codex routing ungated::No $CODEX_BASELINE yet — this run reports recall without gating it. Promote a full sweep's codex-routing-recall-baseline artifact to start gating."
+            echo "::notice title=Codex routing ungated::No $CODEX_BASELINE yet — this run reports recall without gating it. Promote a full sweep's codex-routing-recall-baseline artifact, in a muggle-ai-brain PR, to start gating."
           fi
           if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
             python internal/skill-routing-eval/run.py --host codex \
               --all --runs "$ROUTING_RUNS" --workers "$ROUTING_WORKERS" \
-              --repo-root "$CLEAN_CWD" "${gate[@]}" \
+              --repo-root "$CLEAN_CWD" --brain-dir "$MUGGLE_BRAIN_DIR" "${gate[@]}" \
               --record-baseline "$BASELINE_CANDIDATE"
           else
             python internal/skill-routing-eval/run.py --host codex \
               --skills "${{ steps.scope.outputs.skills }}" \
               --runs "$ROUTING_RUNS_SCOPED" --workers "$ROUTING_WORKERS" \
-              --repo-root "$CLEAN_CWD" "${gate[@]}"
+              --repo-root "$CLEAN_CWD" --brain-dir "$MUGGLE_BRAIN_DIR" "${gate[@]}"
           fi
 
       - name: Upload baseline candidate
-        if: always() && steps.auth.outputs.ready == 'true' && steps.scope.outputs.full == 'true'
+        if: always() && steps.brain.outputs.ready == 'true' && steps.scope.outputs.full == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: codex-routing-recall-baseline
@@ -273,7 +296,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Report routing results
-        if: always() && steps.auth.outputs.ready == 'true'
+        if: always() && steps.brain.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -472,6 +495,8 @@ jobs:
       AGENT_RUNS: ${{ inputs.agent_runs || '5' }}
       AGENT_CONCURRENCY: ${{ inputs.agent_concurrency || '8' }}
       CODEX_AGENT_HOME: ${{ github.workspace }}/.codex-agent-home
+      MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
+      AGENT_SCENARIOS_DIR: ${{ github.workspace }}/muggle-ai-brain/eval/agent-gate-eval/scenarios
     steps:
       - name: Checkout works
         uses: actions/checkout@v6
@@ -518,22 +543,44 @@ jobs:
         if: steps.scope.outputs.should_run == 'true' && steps.auth.outputs.ready != 'true'
         run: echo "::notice title=Codex agent-gate eval skipped::Set the OPENAI_API_KEY or CODEX_AUTH_JSON repo secret to run the agent-gate eval under Codex."
 
-      - name: Setup Node.js
+      # The scenario suites live in muggle-ai-brain.
+      - name: Check for the scenario repo deploy key
+        id: brain
         if: steps.auth.outputs.ready == 'true'
+        env:
+          BRAIN_DEPLOY_KEY: ${{ secrets.BRAIN_DEPLOY_KEY }}
+        run: |
+          if [ -n "$BRAIN_DEPLOY_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Codex agent-gate eval skipped::Set BRAIN_DEPLOY_KEY, which skill-gate-eval already uses, to run the agent-gate eval under Codex."
+          fi
+
+      - name: Checkout scenario data (muggle-ai-brain)
+        if: steps.brain.outputs.ready == 'true'
+        uses: actions/checkout@v6
+        with:
+          repository: multiplex-ai/muggle-ai-brain
+          ssh-key: ${{ secrets.BRAIN_DEPLOY_KEY }}
+          path: muggle-ai-brain
+
+      - name: Setup Node.js
+        if: steps.brain.outputs.ready == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: "22"
 
       - name: Setup pnpm
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         uses: pnpm/action-setup@v6
 
       - name: Install dependencies
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Install Codex CLI
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: |
           npm install -g "@openai/codex@${CODEX_CLI_VERSION}"
           codex --version
@@ -543,7 +590,7 @@ jobs:
       # routing job, lift the runner's user-namespace block, and fall back to no
       # sandbox if it still cannot start.
       - name: Start Codex's sandbox
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           mkdir -p "$CODEX_AGENT_HOME"
@@ -556,14 +603,14 @@ jobs:
           fi
 
       - name: Run agent-gate evals under Codex (every agent scenario file)
-        if: steps.auth.outputs.ready == 'true'
+        if: steps.brain.outputs.ready == 'true'
         run: |
           set -euo pipefail
           shopt -s nullglob
           fail=0
           total=0
           skill_suites=()
-          for scenarios in internal/agent-gate-eval/scenarios/*.json; do
+          for scenarios in "$AGENT_SCENARIOS_DIR"/*.json; do
             case "$scenarios" in *.results.json) continue ;; esac
             agent="$(basename "$scenarios" .json)"
             # The Codex harness runs agent targets only; skill suites run under
@@ -577,7 +624,8 @@ jobs:
             echo "::group::agent=$agent runs=$AGENT_RUNS"
             if pnpm exec tsx internal/agent-gate-eval/src/run.ts --host codex \
                  --agent "$agent" --runs "$AGENT_RUNS" \
-                 --concurrency "$AGENT_CONCURRENCY" --codex-home "$CODEX_AGENT_HOME"; then
+                 --concurrency "$AGENT_CONCURRENCY" --codex-home "$CODEX_AGENT_HOME" \
+                 --brain-dir "$MUGGLE_BRAIN_DIR"; then
               echo "PASS $agent"
             else
               echo "FAIL $agent"
@@ -589,19 +637,19 @@ jobs:
             echo "::notice title=Skill suites not run under Codex::${skill_suites[*]} target skills, which the Codex harness cannot run; they run under Claude in Skill Evals (muggle-do-eval)."
           fi
           if [ "$total" -eq 0 ]; then
-            echo "No agent scenario files under internal/agent-gate-eval/scenarios" >&2
+            echo "No agent scenario files under $AGENT_SCENARIOS_DIR" >&2
             exit 1
           fi
           exit "$fail"
 
       - name: Report agent results
-        if: always() && steps.auth.outputs.ready == 'true'
+        if: always() && steps.brain.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
           md="### 🤖 Agent gate eval — Codex"$'\n'
-          for results in internal/agent-gate-eval/scenarios/*.codex.results.json; do
+          for results in "$AGENT_SCENARIOS_DIR"/*.codex.results.json; do
             [ -f "$results" ] || continue
             md+="$(node -e '
               const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));

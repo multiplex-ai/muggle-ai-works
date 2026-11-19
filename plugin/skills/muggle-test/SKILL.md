@@ -1,6 +1,6 @@
 ---
 name: muggle-test
-description: "Change-driven E2E acceptance testing: detects the user's recent changes (local diff, branch, or PR), maps them to the user flows they affect, and runs real-browser tests on localhost or a preview/staging URL. Use whenever the user wants their own work validated before it ships — \"make sure I didn't break anything\", \"did my recent commits break any user flows?\", \"test before I push\" — the pre-merge acceptance gate. The signal is validation tied to a commit, push, PR, merge, or release; it holds even when the request never says E2E or browser. Invoke it first, before reading the diff or running anything: finding what changed and what it affects is this skill's own first step, and unit tests, a build, or eyeballing the diff do not substitute for the acceptance run the user asked for. Unstated scope (a chunk of work, a refactor, a sprint, a deploy preview) is its input, not a reason to investigate first. One named flow: muggle-test-feature-local; importing spec files: muggle-test-import."
+description: "Change-driven E2E acceptance testing: detects the user's recent changes, maps them to the user flows they affect, and runs real-browser tests on localhost, a preview/staging URL, or an iOS simulator build. Use whenever the user wants their own work validated before it ships — \"make sure I didn't break anything\", \"did my recent commits break any user flows?\", \"test before I push\" — the pre-merge acceptance gate. The signal is validation tied to a commit, push, PR, merge, or release; it holds even when the request never says E2E or browser. Invoke it first, before reading the diff or running anything: finding what changed and what it affects is this skill's own first step, and unit tests, a build, or eyeballing the diff do not substitute for the acceptance run the user asked for. Unstated scope (a chunk of work, a refactor, a sprint, a deploy preview) is its input, not a reason to investigate first. One named flow: muggle-test-feature-local; importing spec files: muggle-test-import."
 mandatoryStages:
   - ../_shared/failure-mode-handling.md
   - ../_shared/debug-failed-run.md
@@ -65,7 +65,7 @@ Gates run per `preference-gates/README.md`.
 
 ## Step 1: Confirm Scope of Work (Always First)
 
-Parse the user's query and explicitly confirm their expectation. There are exactly two modes:
+Parse the user's query and explicitly confirm their expectation. There are two web modes, plus Mode C for an iOS build:
 
 ### Mode A: Local Test Generation (default for PRs)
 > Test impacted use cases/test cases against **localhost** using the Electron browser.
@@ -80,6 +80,13 @@ Signs the user wants this: mentions "localhost", "local", "my machine", "dev ser
 > Execution tool: `muggle-remote-workflow-start-test-script-generation`
 
 Signs the user wants this: mentions "preview", "staging", "deployed", "preview URL", "test on preview", "test the deployment", or provides an actual **deployed** preview/staging URL (e.g. `*.vercel.app`, `staging.foo.com`, custom preview domains). GitHub PR URLs do **not** count — see Mode A.
+
+### Mode C: iOS Build
+> Upload a zipped `.app` simulator build and run it on the Muggle iOS pool.
+>
+> Procedure: [`ios.md`](ios.md)
+
+Signs the user wants this: mentions an iOS app, iPhone app, Xcode, a simulator build, or a `.app` bundle or its zip, or the repo is an Xcode project with no web front end. Mode C is never the default and skips the picker below.
 
 ### Confirming (gated by `defaultExecutionMode`)
 

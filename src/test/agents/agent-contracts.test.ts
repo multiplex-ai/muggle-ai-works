@@ -107,6 +107,25 @@ describe("visual-walkthrough-builder contract", () => {
   });
 });
 
+describe("acceptance-tester contract", () => {
+  const agentPath = path.join(agentsDir, "acceptance-tester.md");
+  const body = fs.readFileSync(agentPath, "utf8");
+
+  it("lists only skills that exist", () => {
+    const listedSkills = Array.from(body.matchAll(/^\| `(muggle-[a-z-]+)` \|/gm), (match) => match[1]);
+    expect(listedSkills).toContain("muggle-test");
+    for (const skill of listedSkills) {
+      expect(fs.existsSync(path.join(skillsDir, skill, "SKILL.md")), `${skill} has a SKILL.md`).toBe(true);
+    }
+  });
+
+  it("advertises iOS app builds beside web apps, routed to muggle-test's iOS mode", () => {
+    expect(parseFrontmatter(agentPath).description).toContain("iOS app builds");
+    expect(body).toContain("](../skills/muggle-test/ios.md)");
+    expect(fs.readFileSync(path.join(skillsDir, "muggle-test", "SKILL.md"), "utf8")).toContain("](ios.md)");
+  });
+});
+
 describe("skill -> agent dispatch consistency", () => {
   const dispatchPairs = [
     { skill: "muggle-test-prepare", agent: "test-prepare-runner" },

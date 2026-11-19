@@ -1,9 +1,13 @@
 /**
  * Tests for how upstream calls reach the wire: a file upload arrives as a multipart file part
- * the backend's multer `upload.single("file")` can read, and a JSON call is still sent as JSON.
+ * the backend's multer `upload.single("file")` can read, a file body is streamed raw, and a JSON
+ * call is still sent as JSON.
  */
 
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, IncomingMessage, Server } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { AddressInfo } from "node:net";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -43,6 +47,7 @@ vi.mock("../shared/logger.js", () => {
 
 interface IReceivedUpstreamRequest {
   contentType: string;
+  contentLength: string;
   body: Buffer;
 }
 
@@ -63,6 +68,7 @@ beforeAll(async () => {
   upstreamServer = createServer(async (request, response) => {
     receivedRequests.push({
       contentType: request.headers["content-type"] ?? "",
+      contentLength: request.headers["content-length"] ?? "",
       body: await readRequestBodyAsync(request),
     });
     response.writeHead(200, { "Content-Type": "application/json" });
@@ -162,6 +168,22 @@ describe("upstream multipart upload", () => {
       ["second.jpg", "image/jpeg"],
     ]);
     expect(Buffer.from(await screenshotFiles[1].arrayBuffer())).toEqual(jpegBytes);
+  });
+
+  it("streams a file body from disk as the raw request body", async () => {
+    const archiveBytes = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0xff, 0x80, 0x0d, 0x0a]);
+    const archiveDir = mkdtempSync(join(tmpdir(), "upstream-file-body-"));
+    const archivePath = join(archiveDir, "Notes.app.zip");
+    writeFileSync(archivePath, archiveBytes);
+
+    const receivedRequest = await sendPostAsync({
+      fileBody: { filePath: archivePath, contentType: "application/octet-stream", sizeBytes: archiveBytes.length },
+    });
+    rmSync(archiveDir, { recursive: true, force: true });
+
+    expect(receivedRequest.contentType).toBe("application/octet-stream");
+    expect(receivedRequest.contentLength).toBe(String(archiveBytes.length));
+    expect(receivedRequest.body).toEqual(archiveBytes);
   });
 
   it("still sends a JSON call as JSON", async () => {

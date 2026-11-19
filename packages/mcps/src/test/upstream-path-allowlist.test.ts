@@ -57,6 +57,11 @@ describe("upstream path allowlist", () => {
     expect(upstreamResponse.statusCode).toBe(200);
   });
 
+  it("lets the iOS pool relay through", async () => {
+    const upstreamResponse = await executeGetAsync("/v1/protected/ios-pool/runs/run-1");
+    expect(upstreamResponse.statusCode).toBe(200);
+  });
+
   it("keeps the other organization routes closed", async () => {
     await expect(executeGetAsync("/v1/protected/organizations/org-1/members")).rejects.toThrow("is not allowed");
     await expect(executeGetAsync("/v1/protected/organizations/org-1")).rejects.toThrow("is not allowed");

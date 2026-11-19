@@ -3,3 +3,6 @@ export const MUGGLE_TEST_PREFIX = "/v1/protected/muggle-test";
 
 /** Prompt-service route of the caller's taste profile (GET / PUT / DELETE). */
 export const TASTE_PROFILE_PATH = `${MUGGLE_TEST_PREFIX}/taste-profile`;
+
+/** Prompt-service route prefix of the iOS pool relay. */
+export const IOS_POOL_PREFIX = "/v1/protected/ios-pool";

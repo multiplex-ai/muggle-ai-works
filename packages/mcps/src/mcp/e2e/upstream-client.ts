@@ -2,6 +2,8 @@
  * HTTP client for forwarding requests to prompt-service.
  */
 
+import * as fs from "node:fs";
+
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from "axios";
 
 import { getConfig } from "../../shared/config.js";
@@ -30,6 +32,7 @@ const ALLOWED_UPSTREAM_PREFIXES = [
   "/v1/protected/wallet/",
   "/v1/protected/api-keys",
   "/v1/protected/actionScript/",
+  "/v1/protected/ios-pool/",
   BUG_REPORTS_PATH,
   // Only the caller's own membership read: the organization admin routes stay out of an agent's reach.
   "/v1/protected/organizations/my-organizations",
@@ -283,7 +286,16 @@ export class PromptServiceClient {
         timeout: timeout,
       };
 
-      if (call.multipartFormData) {
+      if (call.fileBody) {
+        requestConfig.data = fs.createReadStream(call.fileBody.filePath);
+        requestConfig.headers = {
+          ...headers,
+          "Content-Type": call.fileBody.contentType,
+          "Content-Length": String(call.fileBody.sizeBytes),
+        };
+        // axios caps bodies at 10 MB by default; a build archive is far larger.
+        requestConfig.maxBodyLength = Infinity;
+      } else if (call.multipartFormData) {
         // No Content-Type here: axios writes multipart/form-data with the part boundary, and a
         // JSON Content-Type would make it serialize the form as JSON instead.
         requestConfig.data = this.buildMultipartBody(call.multipartFormData);

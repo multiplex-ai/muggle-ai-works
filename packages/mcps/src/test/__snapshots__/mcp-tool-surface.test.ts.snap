@@ -179,6 +179,26 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-fan-out-plan",
   },
   {
+    "description": "List the iOS simulator builds stored for a project, newest first, with digest, bundle id, branch and commit.",
+    "name": "muggle-remote-ios-build-list",
+  },
+  {
+    "description": "Upload a zipped .app iOS simulator build to a project from a path on this machine. The archive is hashed and streamed from disk; returns the stored artifact, whose digest muggle-remote-ios-run-create takes.",
+    "name": "muggle-remote-ios-build-upload",
+  },
+  {
+    "description": "Queue an iOS acceptance run of an uploaded build on a simulator: a plain-language task, or an existing use case or test case. Returns the queued run; poll muggle-remote-ios-run-get until isFinished.",
+    "name": "muggle-remote-ios-run-create",
+  },
+  {
+    "description": "Read an iOS run: its machinery status (queued, running, completed, infra_error, timed_out, cancelled) and, separately, its test verdict (passed, failed, goal_unachievable; null until published).",
+    "name": "muggle-remote-ios-run-get",
+  },
+  {
+    "description": "Read an iOS run's step events in order: what the agent did at each step, its outcome, and a screenshot URL when one was taken.",
+    "name": "muggle-remote-ios-run-steps-get",
+  },
+  {
     "description": "Upload a locally executed run (generation/replay) to cloud workflow records.",
     "name": "muggle-remote-local-run-upload",
   },
@@ -623,6 +643,11 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-bulk-preview-job-get",
   "muggle-remote-bulk-preview-job-list",
   "muggle-remote-fan-out-plan",
+  "muggle-remote-ios-build-list",
+  "muggle-remote-ios-build-upload",
+  "muggle-remote-ios-run-create",
+  "muggle-remote-ios-run-get",
+  "muggle-remote-ios-run-steps-get",
   "muggle-remote-local-run-upload",
   "muggle-remote-organization-list",
   "muggle-remote-prd-file-delete",

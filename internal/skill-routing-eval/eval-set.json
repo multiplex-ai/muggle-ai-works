@@ -2518,5 +2518,35 @@
     "query": "set me up with a Muggle AI login, I've never used it before",
     "expected_skill": "muggle-register",
     "note": "New user; 'login' wording, no existing account."
+  },
+  {
+    "query": "test my iOS app with muggle",
+    "expected_skill": "muggle-test",
+    "note": "Explicit platform + muggle."
+  },
+  {
+    "query": "run the iPhone simulator build through an acceptance test",
+    "expected_skill": "muggle-test",
+    "note": "Simulator build, no muggle keyword."
+  },
+  {
+    "query": "I have MyApp.app.zip from xcodebuild, upload it and check the sign-up flow works",
+    "expected_skill": "muggle-test",
+    "note": "Archive path plus a flow to verify."
+  },
+  {
+    "query": "can muggle check that adding a note works in our iOS app before we merge?",
+    "expected_skill": "muggle-test",
+    "note": "Pre-merge validation of an iOS app."
+  },
+  {
+    "query": "upload this .app bundle for testing",
+    "expected_skill": "muggle-test",
+    "note": "Upload intent only."
+  },
+  {
+    "query": "verify the login screen on the iPhone build of our app",
+    "expected_skill": "muggle-test",
+    "note": "Flow on an iPhone build."
   }
 ]

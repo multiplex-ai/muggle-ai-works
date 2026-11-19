@@ -61,6 +61,18 @@ export interface IUpstreamMultipartFile {
 }
 
 /**
+ * A file on this machine sent as the whole raw request body, streamed rather than buffered.
+ */
+export interface IUpstreamFileBody {
+  /** Resolved path of the file to stream. */
+  filePath: string;
+  /** Content-Type header to send. */
+  contentType: string;
+  /** File size, sent as Content-Length. */
+  sizeBytes: number;
+}
+
+/**
  * Multipart form-data body: plain text fields followed by file parts.
  */
 export interface IUpstreamMultipartFormData {
@@ -88,6 +100,9 @@ export interface IUpstreamCall {
 
   /** Optional multipart form-data upload. */
   multipartFormData?: IUpstreamMultipartFormData;
+
+  /** Optional file streamed from disk as the raw body. */
+  fileBody?: IUpstreamFileBody;
 
   /** Timeout in milliseconds (overrides default). */
   timeoutMs?: number;

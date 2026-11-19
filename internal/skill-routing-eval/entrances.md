@@ -14,6 +14,7 @@ The hardest routing lives at the boundaries between siblings; each entrance belo
 **Engage when:** the user wants to E2E-acceptance-test **their recent code changes** — "test my changes", "validate my work before I push", "did my changes break anything", "regression test what I just did", "test on staging/preview". Change-driven: detect diff → map to use cases → run locally or remotely → publish + PR summary.
 **Boundary vs `muggle-test-feature-local`:** that one targets *one named feature/flow on localhost* ("test the signup flow"); `muggle-test` is *change-driven* over the whole diff. When the user anchors on "my changes / my work / before push" → `muggle-test`. When they anchor on a *specific flow* or *localhost* → feature-local.
 **Boundary vs `muggle-pr-visual-walkthrough`:** running the tests → `muggle-test`; only *posting existing results* to a PR → walkthrough.
+**iOS apps:** testing an iOS app, iPhone app or Xcode simulator build ("test my iOS app", "upload this .app and test sign-up") is `muggle-test` too, in its iOS mode; there is no separate iOS skill.
 
 ## muggle-test-feature-local
 **Engage when:** the user wants a real-browser E2E test of a **specific feature or user flow on localhost / a dev server** — "test the checkout flow on localhost:3000", "verify the new signup form works", "click through the onboarding and check it works". Feature-anchored, local.

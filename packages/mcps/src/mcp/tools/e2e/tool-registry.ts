@@ -27,6 +27,8 @@ import {
   USE_CASE_ID_REFERENCE_FIELD,
 } from "./entity-reference-resolver-constants.js";
 import { buildBugReportCreateCall, buildBugReportReplyCall } from "./bug-report-upstream.js";
+import { buildIosBuildUploadCall, buildIosRunCreateCall } from "./ios-pool-upstream.js";
+import { mapIosRun } from "./ios-run-transform.js";
 import {
   linkToBugReports,
   linkToCreatedBugReport,
@@ -77,7 +79,7 @@ import {
   pickTestCaseTestStateFields,
 } from "./test-state-upstream.js";
 import { uploadTasteProfileAsync } from "./taste-profile-upload.js";
-import { MUGGLE_TEST_PREFIX, TASTE_PROFILE_PATH } from "./upstream-route-constants.js";
+import { IOS_POOL_PREFIX, MUGGLE_TEST_PREFIX, TASTE_PROFILE_PATH } from "./upstream-route-constants.js";
 import { BUG_REPORTS_PATH } from "../../../shared/bug-report/index.js";
 
 /** Default workflow timeout. */
@@ -2268,6 +2270,62 @@ const authTools: IQaToolDefinition[] = [
   },
 ];
 
+const iosPoolTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-ios-build-upload",
+    description:
+      "Upload a zipped .app iOS simulator build to a project from a path on this machine. The archive is hashed and streamed from disk; returns the stored artifact, whose digest muggle-remote-ios-run-create takes.",
+    inputSchema: schemas.IosBuildUploadInputSchema,
+    mapToUpstream: (input) => buildIosBuildUploadCall(input as schemas.IosBuildUploadInput),
+  },
+  {
+    name: "muggle-remote-ios-build-list",
+    description: "List the iOS simulator builds stored for a project, newest first, with digest, bundle id, branch and commit.",
+    inputSchema: schemas.IosBuildListInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as schemas.IosBuildListInput;
+      return {
+        method: "GET",
+        path: `${IOS_POOL_PREFIX}/projects/${encodeURIComponent(toolInput.projectId)}/artifacts`,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-ios-run-create",
+    description:
+      "Queue an iOS acceptance run of an uploaded build on a simulator: a plain-language task, or an existing use case or test case. Returns the queued run; poll muggle-remote-ios-run-get until isFinished.",
+    inputSchema: schemas.IosRunCreateInputSchema,
+    mapToUpstream: (input) => buildIosRunCreateCall(input as schemas.IosRunCreateInput),
+    mapFromUpstream: mapIosRun,
+  },
+  {
+    name: "muggle-remote-ios-run-get",
+    description:
+      "Read an iOS run: its machinery status (queued, running, completed, infra_error, timed_out, cancelled) and, separately, its test verdict (passed, failed, goal_unachievable; null until published).",
+    inputSchema: schemas.IosRunReadInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as schemas.IosRunReadInput;
+      return {
+        method: "GET",
+        path: `${IOS_POOL_PREFIX}/runs/${encodeURIComponent(toolInput.runId)}`,
+      };
+    },
+    mapFromUpstream: mapIosRun,
+  },
+  {
+    name: "muggle-remote-ios-run-steps-get",
+    description: "Read an iOS run's step events in order: what the agent did at each step, its outcome, and a screenshot URL when one was taken.",
+    inputSchema: schemas.IosRunReadInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as schemas.IosRunReadInput;
+      return {
+        method: "GET",
+        path: `${IOS_POOL_PREFIX}/runs/${encodeURIComponent(toolInput.runId)}/steps`,
+      };
+    },
+  },
+];
+
 /** All cloud E2E tool definitions (muggle-remote-* prefix). */
 export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...projectTools,
@@ -2288,6 +2346,7 @@ export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...userFeedbackTools,
   ...bugReportTools,
   ...tasteProfileTools,
+  ...iosPoolTools,
   ...authTools,
 ];
 

@@ -38,6 +38,8 @@ export * from "./test-state-schemas.js";
 export * from "./test-state-types.js";
 export * from "./bug-report-schemas.js";
 export * from "./taste-profile-schemas.js";
+export * from "./ios-pool-schemas.js";
+export * from "./ios-pool-types.js";
 
 /**
  * Pagination input schema shared by list tools.

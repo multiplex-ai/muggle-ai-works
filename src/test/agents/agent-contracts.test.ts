@@ -5,6 +5,10 @@ import { describe, expect, it } from "vitest";
 
 import { listScenarioStems, loadAgentScenarioFile } from "../../../internal/agent-gate-eval/src/scenario.js";
 import { EvalTargetKind } from "../../../internal/agent-gate-eval/src/types.js";
+import {
+  describeWithShippedScenarios,
+  shippedScenariosDir,
+} from "../../../internal/agent-gate-eval/test/support/shipped-scenarios.js";
 
 const repoRoot = process.cwd();
 const agentsDir = path.join(repoRoot, "plugin", "agents");
@@ -163,8 +167,8 @@ describe("skill -> agent dispatch consistency", () => {
   });
 });
 
-describe("behavioral eval coverage", () => {
-  const scenariosDir = path.join(repoRoot, "internal", "agent-gate-eval", "scenarios");
+describeWithShippedScenarios("behavioral eval coverage", () => {
+  const scenariosDir = shippedScenariosDir();
   const stems = listScenarioStems(scenariosDir);
   const targetsByStem = new Map(
     stems.map((stem) => [stem, loadAgentScenarioFile(path.join(scenariosDir, `${stem}.json`)).target]),

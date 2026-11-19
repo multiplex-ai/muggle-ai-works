@@ -1,16 +1,13 @@
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 import { UNSCRIPTED_BASH_RESPONSE } from "../src/constants.js";
 import { loadAgentScenarioFile } from "../src/scenario.js";
 import { createBashResponder, resolveScriptedBashResponse } from "../src/tools/scripted-replies.js";
+import { describeWithShippedScenarios, shippedScenariosDir } from "./support/shipped-scenarios.js";
 
-const scenariosDir = path.join(
-  path.dirname(path.dirname(fileURLToPath(import.meta.url))),
-  "scenarios",
-);
+const scenariosDir = shippedScenariosDir();
 
 describe("resolveScriptedBashResponse", () => {
   const responses = [
@@ -40,7 +37,7 @@ describe("resolveScriptedBashResponse", () => {
   });
 });
 
-describe("visual-walkthrough-builder Mode A scenario", () => {
+describeWithShippedScenarios("visual-walkthrough-builder Mode A scenario", () => {
   const scenario = loadAgentScenarioFile(
     path.join(scenariosDir, "visual-walkthrough-builder.json"),
   ).scenarios.find((candidate) => candidate.name === "mode-a-posts-comment-to-pr");
@@ -74,7 +71,7 @@ describe("visual-walkthrough-builder Mode A scenario", () => {
   });
 });
 
-describe("muggle-pr-followup tick verdict stubs", () => {
+describeWithShippedScenarios("muggle-pr-followup tick verdict stubs", () => {
   const scenario = loadAgentScenarioFile(
     path.join(scenariosDir, "muggle-pr-followup.tick.json"),
   ).scenarios.find((candidate) => candidate.name === "conflicting-branch-dispatches-rebase");
@@ -93,7 +90,7 @@ describe("muggle-pr-followup tick verdict stubs", () => {
   });
 });
 
-describe("muggle-do scenarios answer the agent's own edits", () => {
+describeWithShippedScenarios("muggle-do scenarios answer the agent's own edits", () => {
   const scenarioNamed = (file: string, name: string) =>
     loadAgentScenarioFile(path.join(scenariosDir, file)).scenarios.find((candidate) => candidate.name === name);
 

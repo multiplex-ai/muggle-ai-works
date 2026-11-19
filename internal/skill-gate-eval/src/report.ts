@@ -10,7 +10,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { RESULTS_FILENAME_BY_HOST } from "./constants.js";
+import { resolveBrainDir } from "./brain-dir.js";
+import { GATE_SCENARIOS_BRAIN_SUBPATH, RESULTS_FILENAME_BY_HOST } from "./constants.js";
 import { formatNoResultNote } from "./scenario-report.js";
 import { EvalHost } from "./types.js";
 import type { ScenarioReport } from "./types.js";
@@ -30,8 +31,7 @@ const resultsFilename = RESULTS_FILENAME_BY_HOST[host];
 if (!resultsFilename) throw new Error(`--host must be one of ${Object.values(EvalHost).join(", ")}`);
 const hostValueIndex = hostFlag >= 0 ? hostFlag + 1 : -1;
 const brainDirArg = cliArgs.find((arg, index) => !arg.startsWith("--") && index !== hostValueIndex);
-const brainDir = brainDirArg ?? process.env.MUGGLE_BRAIN_DIR ?? "../muggle-ai-brain";
-const gateDir = path.resolve(brainDir, "eval", "skill-gate-eval");
+const gateDir = path.resolve(resolveBrainDir(brainDirArg), ...GATE_SCENARIOS_BRAIN_SUBPATH);
 const title = host === EvalHost.Codex ? "### 🚪 Skill gate eval — Codex" : "### 🚪 Skill gate eval";
 
 const files = fs.existsSync(gateDir)

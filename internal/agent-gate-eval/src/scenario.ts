@@ -3,6 +3,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { BRAIN_DIR_ENV_VAR } from "../../skill-gate-eval/src/constants.js";
 import { RESULTS_FILE_SUFFIX, TOOL_PATTERN_EXPECTATION_KEYS } from "./constants.js";
 import { applyScenarioDefaults } from "./scenario-defaults.js";
 import { isToolAttemptPattern, resolvePatternReferences } from "./tool-patterns.js";
@@ -206,9 +207,14 @@ export function listScenarioStems(scenariosDir: string): string[] {
 /**
  * Load the suite `--suite` names, or every suite in the directory when it names none.
  *
- * @throws when the named suite has no file.
+ * @throws when the directory is missing, or the named suite has no file.
  */
 export function loadScenarioSuites(scenariosDir: string, suiteStem?: string): ScenarioSuite[] {
+  if (!fs.existsSync(scenariosDir)) {
+    throw new Error(
+      `No scenarios directory at ${path.resolve(scenariosDir)} — pass --brain-dir or set ${BRAIN_DIR_ENV_VAR} to a muggle-ai-brain checkout`,
+    );
+  }
   const stems = suiteStem ? [suiteStem] : listScenarioStems(scenariosDir);
   return stems.map((stem) => {
     const filePath = path.resolve(scenariosDir, `${stem}.json`);

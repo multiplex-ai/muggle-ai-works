@@ -1,12 +1,14 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { BRAIN_DIR_ENV_VAR, DEFAULT_BRAIN_DIR } from "../../skill-gate-eval/src/constants.js";
 
 import { loadAgentDefinition } from "../src/agent-definition.js";
 import { parseEvalCliArgs } from "../src/cli-args.js";
+import { SCENARIOS_BRAIN_SUBPATH } from "../src/constants.js";
 import {
   listScenarioStems,
   loadAgentScenarioFile,
@@ -14,8 +16,7 @@ import {
   scenariosForCadence,
 } from "../src/scenario.js";
 import { EvalTargetKind, ScenarioCadence, type AgentScenario } from "../src/types.js";
-
-const repoScenariosDir = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), "scenarios");
+import { describeWithShippedScenarios, shippedScenariosDir } from "./support/shipped-scenarios.js";
 
 let tmpDir: string;
 
@@ -277,8 +278,16 @@ describe("scenario suites", () => {
     expect(() => loadScenarioSuites(tmpDir, "missing")).toThrow(/No scenario file/);
   });
 
-  it("loads every scenario file the repo ships, agent and skill suites alike", () => {
-    const suites = loadScenarioSuites(repoScenariosDir);
+  it("names the brain checkout when the scenarios directory is missing", () => {
+    expect(() => loadScenarioSuites(path.join(tmpDir, "no-brain-here"))).toThrow(
+      new RegExp(`No scenarios directory at .*no-brain-here.*${BRAIN_DIR_ENV_VAR}`),
+    );
+  });
+});
+
+describeWithShippedScenarios("shipped scenario suites", () => {
+  it("loads every shipped scenario file, agent and skill suites alike", () => {
+    const suites = loadScenarioSuites(shippedScenariosDir());
     expect(suites.map((suite) => suite.file.target.kind)).toContain(EvalTargetKind.Agent);
     expect(suites.map((suite) => suite.file.target.kind)).toContain(EvalTargetKind.Skill);
   });
@@ -313,6 +322,21 @@ describe("parseEvalCliArgs", () => {
       runs: 3,
     });
     expect(parseEvalCliArgs([]).suite).toBeUndefined();
+  });
+
+  it("reads suites from the brain checkout --brain-dir names, unless --scenarios-dir names a directory", () => {
+    expect(parseEvalCliArgs(["--brain-dir", "some-brain"]).scenariosDir).toBe(
+      path.join("some-brain", ...SCENARIOS_BRAIN_SUBPATH),
+    );
+    expect(parseEvalCliArgs(["--brain-dir", "some-brain", "--scenarios-dir", "elsewhere"]).scenariosDir).toBe("elsewhere");
+  });
+
+  it("falls back to the brain checkout the environment names, then to the sibling checkout", () => {
+    vi.stubEnv(BRAIN_DIR_ENV_VAR, "env-brain");
+    expect(parseEvalCliArgs([]).scenariosDir).toBe(path.join("env-brain", ...SCENARIOS_BRAIN_SUBPATH));
+    vi.stubEnv(BRAIN_DIR_ENV_VAR, undefined);
+    expect(parseEvalCliArgs([]).scenariosDir).toBe(path.join(DEFAULT_BRAIN_DIR, ...SCENARIOS_BRAIN_SUBPATH));
+    vi.unstubAllEnvs();
   });
 
   it("collects repeated --codex-config values and reads --cadence and --model", () => {

@@ -25,6 +25,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import { resolveBrainDir } from "./brain-dir.js";
 import { prepareCodexGateHome, runScenarioOnceInCodex } from "./codex-harness.js";
 import { CodexLoginPool, withLoginRotation } from "./codex-login-pool.js";
 import {
@@ -35,6 +36,7 @@ import {
 import {
   DEFAULT_GATE_EVAL_CONCURRENCY,
   DEFAULT_MODEL,
+  GATE_SCENARIOS_BRAIN_SUBPATH,
   MODEL_ALIASES,
   PASS_THRESHOLD,
   RESULTS_FILENAME_BY_HOST,
@@ -121,7 +123,7 @@ function parseArgs(argv: string[]): RunCliArgs {
     gate: out.gate,
     skill: out.skill,
     runs: parseInt(out.runs ?? "10", 10),
-    brainDir: out["brain-dir"] ?? process.env.MUGGLE_BRAIN_DIR ?? "../muggle-ai-brain",
+    brainDir: resolveBrainDir(out["brain-dir"]),
     skillsDir: skillsDir,
     host: host,
     model: model,
@@ -142,8 +144,7 @@ async function main(): Promise<void> {
   );
   const scenarioFilePath = path.resolve(
     args.brainDir,
-    "eval",
-    "skill-gate-eval",
+    ...GATE_SCENARIOS_BRAIN_SUBPATH,
     args.gate,
     "scenarios.json",
   );

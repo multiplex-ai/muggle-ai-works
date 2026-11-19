@@ -242,6 +242,9 @@ export const PREFERENCES_CONTEXT_HEADER = "Muggle Test Preferences (~/.muggle-ai
 /** The shipped preference defaults, relative to the plugin tree. */
 export const PREFERENCE_DEFAULTS_PATH = "config/preference-defaults.json";
 
+/** Where the scenario suites sit in a muggle-ai-brain checkout, as path segments. */
+export const SCENARIOS_BRAIN_SUBPATH = ["eval", "agent-gate-eval", "scenarios"];
+
 /** Fixture repositories a scenario's `seed.repo` names. */
 export const FIXTURE_REPOS_DIR = fileURLToPath(new URL("../fixtures/", import.meta.url));
 

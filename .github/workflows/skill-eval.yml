@@ -285,13 +285,15 @@ jobs:
 
   agent-gate-eval:
     runs-on: ubuntu-latest
-    # LLM-driven like skill-gate-eval, but hermetic (scripted Bash, no brain
-    # checkout) and small: one suite per execution agent × AGENT_RUNS reps.
-    # Skill suites in the same directory run in muggle-do-eval instead.
+    # LLM-driven like skill-gate-eval, but hermetic (scripted Bash) and small:
+    # one suite per execution agent × AGENT_RUNS reps. Skill suites in the same
+    # directory run in muggle-do-eval instead.
     timeout-minutes: 90
     env:
       AGENT_RUNS: ${{ inputs.agent_runs || '5' }}
       AGENT_CONCURRENCY: ${{ inputs.agent_concurrency || '8' }}
+      MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
+      AGENT_SCENARIOS_DIR: ${{ github.workspace }}/muggle-ai-brain/eval/agent-gate-eval/scenarios
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
     steps:
       - name: Checkout works
@@ -302,6 +304,7 @@ jobs:
       # An agent's behavior shifts when its definition, the eval harness, or the
       # stage files it Reads at runtime change. Anything else (docs, runtime) is
       # out of scope on a PR; nightly/dispatch/run-full-eval always run full.
+      # A scenario change lands in muggle-ai-brain, so the nightly picks it up.
       - name: Determine scope
         id: scope
         env:
@@ -330,8 +333,19 @@ jobs:
         if: steps.scope.outputs.should_run == 'true'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          BRAIN_DEPLOY_KEY: ${{ secrets.BRAIN_DEPLOY_KEY }}
         run: |
           : "${CLAUDE_CODE_OAUTH_TOKEN:?set the CLAUDE_CODE_OAUTH_TOKEN repo secret (run \`claude setup-token\`) to run skill evals}"
+          : "${BRAIN_DEPLOY_KEY:?set the BRAIN_DEPLOY_KEY repo secret (private half of a read-only deploy key on multiplex-ai/muggle-ai-brain)}"
+
+      # The scenario suites live in muggle-ai-brain; skill-gate-eval's checkout step says why a deploy key.
+      - name: Checkout scenario data (muggle-ai-brain)
+        if: steps.scope.outputs.should_run == 'true'
+        uses: actions/checkout@v6
+        with:
+          repository: multiplex-ai/muggle-ai-brain
+          ssh-key: ${{ secrets.BRAIN_DEPLOY_KEY }}
+          path: muggle-ai-brain
 
       - name: Setup Node.js
         if: steps.scope.outputs.should_run == 'true'
@@ -353,6 +367,12 @@ jobs:
           npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
           claude --version
 
+      # The unit tests that load the shipped suites skip without a brain
+      # checkout, so ci.yml never runs them; this job has one.
+      - name: Unit-test the harness against the shipped scenarios
+        if: steps.scope.outputs.should_run == 'true'
+        run: pnpm exec vitest run internal/agent-gate-eval/test src/test/agents/agent-contracts.test.ts
+
       - name: Resolve subscription auth
         if: steps.scope.outputs.should_run == 'true'
         uses: ./.github/actions/resolve-claude-token
@@ -373,7 +393,7 @@ jobs:
           mkdir -p "$CLAUDE_CONFIG_DIR"
           fail=0
           total=0
-          for scenarios in internal/agent-gate-eval/scenarios/*.json; do
+          for scenarios in "$AGENT_SCENARIOS_DIR"/*.json; do
             case "$scenarios" in *.results.json) continue ;; esac
             agent="$(basename "$scenarios" .json)"
             # --agent refuses a skill target; skill suites are muggle-do-eval's.
@@ -386,7 +406,8 @@ jobs:
             echo "::group::agent=$agent runs=$AGENT_RUNS"
             if pnpm exec tsx internal/agent-gate-eval/src/run.ts \
                  --agent "$agent" --runs "$AGENT_RUNS" \
-                 --concurrency "$AGENT_CONCURRENCY"; then
+                 --concurrency "$AGENT_CONCURRENCY" \
+                 --brain-dir "$MUGGLE_BRAIN_DIR"; then
               echo "PASS $agent"
             else
               echo "FAIL $agent"
@@ -395,7 +416,7 @@ jobs:
             echo "::endgroup::"
           done
           if [ "$total" -eq 0 ]; then
-            echo "No agent scenario files under internal/agent-gate-eval/scenarios" >&2
+            echo "No agent scenario files under $AGENT_SCENARIOS_DIR" >&2
             exit 1
           fi
           exit "$fail"
@@ -409,10 +430,9 @@ jobs:
         run: |
           set -uo pipefail
           md="### 🤖 Agent gate eval"$'\n'
-          for results in internal/agent-gate-eval/scenarios/*.results.json; do
+          for results in "$AGENT_SCENARIOS_DIR"/*.results.json; do
             [ -f "$results" ] || continue
             md+="$(node -e '
-              // require() would treat this relative glob path as a package name
               const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
               const lines = [`\n**${r.agent}** — model \`${r.model}\` (pin: ${r.modelAlias}), ${r.runsPerScenario} runs/scenario, threshold ${r.passThreshold}`];
               lines.push("", "| Scenario | Pass rate | |", "| --- | --- | --- |");
@@ -437,7 +457,7 @@ jobs:
           fi
 
   # Behavioral evals of the muggle-do skill and its watcher: every skill-target
-  # suite in internal/agent-gate-eval/scenarios. Reports without blocking — it
+  # suite in muggle-ai-brain's eval/agent-gate-eval/scenarios. Reports without blocking — it
   # is not in master's required checks — until two consecutive nightlies pass
   # clean. Each suite demands every run pass (its file's passThreshold).
   muggle-do-eval:
@@ -446,19 +466,29 @@ jobs:
     env:
       MUGGLE_DO_EVAL_RUNS: ${{ inputs.muggle_do_runs || (github.event_name == 'pull_request' && '3' || '5') }}
       MUGGLE_DO_EVAL_CONCURRENCY: "8"
+      MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
+      AGENT_SCENARIOS_DIR: ${{ github.workspace }}/muggle-ai-brain/eval/agent-gate-eval/scenarios
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
+      # Path prefixes a PR must touch for a suite to run, space-separated: the
+      # harness runs every suite, the watcher's tick suite has its own prefixes
+      # on top of the watcher's, and every other suite runs on any muggle-do or
+      # watcher prefix. Read by both scoping steps below.
+      HARNESS_PATH_PREFIXES: internal/agent-gate-eval/
+      MUGGLE_DO_PATH_PREFIXES: plugin/skills/muggle-do/ plugin/skills/do/
+      WATCHER_PATH_PREFIXES: plugin/skills/muggle-pr-followup/ plugin/skills/_shared/pr-followup-helpers/ plugin/skills/_shared/vcs/
+      WATCHER_TICK_PATH_PREFIXES: plugin/scripts/pr-watch-
     steps:
       - name: Checkout works
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      # A PR runs a skill suite's PR-cadence scenarios when it touches that
-      # suite's paths, its scenario file, or the harness. The watcher's tick
-      # suite has its own paths; every other suite runs on any muggle-do or
-      # watcher path. Nightly, dispatch, and the run-full-eval label run every
-      # scenario. Suites scoped out say how many runs they skipped, so a
-      # partial run never reads as a clean pass.
+      # A PR runs the eval when it touches the harness or any suite's path
+      # prefixes; `Select suites` then narrows it to the suites those paths
+      # name. Nightly, dispatch, and the run-full-eval label run every
+      # scenario. A scenario change lands in muggle-ai-brain, so the nightly
+      # picks it up. Scoped-out work says so, so a partial run never reads as
+      # a clean pass.
       - name: Determine scope
         id: scope
         env:
@@ -468,51 +498,24 @@ jobs:
           if [ "$RUN_FULL_EVAL" = "true" ] || [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
             echo "cadence=" >> "$GITHUB_OUTPUT"
-            echo "suites=" >> "$GITHUB_OUTPUT"
             echo "Full muggle-do eval (every scenario)"
             exit 0
           fi
           git fetch --no-tags origin "${{ github.base_ref }}"
-          export CHANGED_PATHS="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
-          selection="$(node -e '
-            const fs = require("fs");
-            const dir = "internal/agent-gate-eval/scenarios";
-            const changed = process.env.CHANGED_PATHS.split("\n").filter(Boolean);
-            const touches = (prefixes) => changed.some((path) => prefixes.some((prefix) => path.startsWith(prefix)));
-            const isHarnessChanged = changed.some(
-              (path) => path.startsWith("internal/agent-gate-eval/") && !path.startsWith(`${dir}/`),
-            );
-            const watcherPaths = [
-              "plugin/skills/muggle-pr-followup/",
-              "plugin/skills/_shared/pr-followup-helpers/",
-              "plugin/skills/_shared/vcs/",
-            ];
-            const suitePaths = { "muggle-pr-followup.tick": [...watcherPaths, "plugin/scripts/pr-watch-"] };
-            const defaultPaths = ["plugin/skills/muggle-do/", "plugin/skills/do/", ...watcherPaths];
-            const suites = [];
-            let skippedScenarios = 0;
-            for (const name of fs.readdirSync(dir).sort()) {
-              if (!name.endsWith(".json") || name.endsWith(".results.json")) continue;
-              const file = JSON.parse(fs.readFileSync(`${dir}/${name}`, "utf8"));
-              if (file.target.kind !== "skill") continue;
-              const stem = name.slice(0, -".json".length);
-              if (isHarnessChanged || touches([...(suitePaths[stem] ?? defaultPaths), `${dir}/${name}`])) suites.push(stem);
-              else skippedScenarios += file.scenarios.filter((scenario) => (scenario.cadence ?? "pr") === "pr").length;
-            }
-            process.stdout.write(`${suites.join(",")} ${skippedScenarios}`);
-          ')"
-          suites="${selection% *}"
-          skipped="${selection##* }"
-          echo "suites=$suites" >> "$GITHUB_OUTPUT"
           echo "cadence=pr" >> "$GITHUB_OUTPUT"
-          if [ -n "$suites" ]; then
+          touched=false
+          while IFS= read -r changed_path; do
+            for prefix in $HARNESS_PATH_PREFIXES $MUGGLE_DO_PATH_PREFIXES $WATCHER_PATH_PREFIXES $WATCHER_TICK_PATH_PREFIXES; do
+              case "$changed_path" in "$prefix"*) touched=true ;; esac
+            done
+          done < <(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          if [ "$touched" = "true" ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "muggle-do-relevant changes detected — running the PR-cadence scenarios of: $suites"
+            echo "muggle-do-relevant changes detected — selecting the suites they name."
           else
             echo "should_run=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [ "$skipped" -gt 0 ]; then
-            line="MUGGLE_DO_RUNS_SCOPED: $((skipped * MUGGLE_DO_EVAL_RUNS)) — skipped $skipped scenarios × $MUGGLE_DO_EVAL_RUNS runs in suites outside this change's paths"
+            # The scenario count lives in muggle-ai-brain, which a scoped-out run does not check out.
+            line="MUGGLE_DO_RUNS_SCOPED: all — no suite's paths changed, so every PR-cadence scenario was skipped"
             echo "$line"
             echo "$line" >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -521,8 +524,65 @@ jobs:
         if: steps.scope.outputs.should_run == 'true'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          BRAIN_DEPLOY_KEY: ${{ secrets.BRAIN_DEPLOY_KEY }}
         run: |
           : "${CLAUDE_CODE_OAUTH_TOKEN:?set the CLAUDE_CODE_OAUTH_TOKEN repo secret (run \`claude setup-token\`) to run skill evals}"
+          : "${BRAIN_DEPLOY_KEY:?set the BRAIN_DEPLOY_KEY repo secret (private half of a read-only deploy key on multiplex-ai/muggle-ai-brain)}"
+
+      # The scenario suites live in muggle-ai-brain; skill-gate-eval's checkout step says why a deploy key.
+      - name: Checkout scenario data (muggle-ai-brain)
+        if: steps.scope.outputs.should_run == 'true'
+        uses: actions/checkout@v6
+        with:
+          repository: multiplex-ai/muggle-ai-brain
+          ssh-key: ${{ secrets.BRAIN_DEPLOY_KEY }}
+          path: muggle-ai-brain
+
+      # Empty `suites` on a full run means every suite; on a PR it means none
+      # matched, which the run step reports rather than running everything.
+      - name: Select suites
+        id: selection
+        if: steps.scope.outputs.should_run == 'true'
+        env:
+          CADENCE: ${{ steps.scope.outputs.cadence }}
+        run: |
+          set -euo pipefail
+          if [ "$CADENCE" != "pr" ]; then
+            echo "suites=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          export CHANGED_PATHS="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
+          selection="$(node -e '
+            const fs = require("fs");
+            const dir = process.env.AGENT_SCENARIOS_DIR;
+            const prefixesOf = (name) => process.env[name].split(" ").filter(Boolean);
+            const changed = process.env.CHANGED_PATHS.split("\n").filter(Boolean);
+            const touches = (prefixes) => changed.some((path) => prefixes.some((prefix) => path.startsWith(prefix)));
+            const isHarnessChanged = touches(prefixesOf("HARNESS_PATH_PREFIXES"));
+            const watcherPaths = prefixesOf("WATCHER_PATH_PREFIXES");
+            const suitePaths = { "muggle-pr-followup.tick": [...watcherPaths, ...prefixesOf("WATCHER_TICK_PATH_PREFIXES")] };
+            const defaultPaths = [...prefixesOf("MUGGLE_DO_PATH_PREFIXES"), ...watcherPaths];
+            const suites = [];
+            let skippedScenarios = 0;
+            for (const name of fs.readdirSync(dir).sort()) {
+              if (!name.endsWith(".json") || name.endsWith(".results.json")) continue;
+              const file = JSON.parse(fs.readFileSync(`${dir}/${name}`, "utf8"));
+              if (file.target.kind !== "skill") continue;
+              const stem = name.slice(0, -".json".length);
+              if (isHarnessChanged || touches(suitePaths[stem] ?? defaultPaths)) suites.push(stem);
+              else skippedScenarios += file.scenarios.filter((scenario) => (scenario.cadence ?? "pr") === "pr").length;
+            }
+            process.stdout.write(`${suites.join(",")} ${skippedScenarios}`);
+          ')"
+          suites="${selection% *}"
+          skipped="${selection##* }"
+          echo "suites=$suites" >> "$GITHUB_OUTPUT"
+          echo "Running the PR-cadence scenarios of: ${suites:-no suite}"
+          if [ "$skipped" -gt 0 ]; then
+            line="MUGGLE_DO_RUNS_SCOPED: $((skipped * MUGGLE_DO_EVAL_RUNS)) — skipped $skipped scenarios × $MUGGLE_DO_EVAL_RUNS runs in suites outside this change's paths"
+            echo "$line"
+            echo "$line" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Setup Node.js
         if: steps.scope.outputs.should_run == 'true'
@@ -558,16 +618,20 @@ jobs:
         if: steps.scope.outputs.should_run == 'true'
         env:
           CADENCE: ${{ steps.scope.outputs.cadence }}
-          SUITES: ${{ steps.scope.outputs.suites }}
+          SUITES: ${{ steps.selection.outputs.suites }}
         run: |
           set -euo pipefail
           shopt -s nullglob
+          if [ "$CADENCE" = "pr" ] && [ -z "$SUITES" ]; then
+            echo "No skill suite covers this change's paths — nothing to run."
+            exit 0
+          fi
           unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
           export CLAUDE_CODE_EXECUTABLE="$(command -v claude)"
           mkdir -p "$CLAUDE_CONFIG_DIR"
           fail=0
           total=0
-          for scenarios in internal/agent-gate-eval/scenarios/*.json; do
+          for scenarios in "$AGENT_SCENARIOS_DIR"/*.json; do
             case "$scenarios" in *.results.json) continue ;; esac
             kind="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).target.kind)' "$scenarios")"
             [ "$kind" = "skill" ] || continue
@@ -581,6 +645,7 @@ jobs:
             if pnpm exec tsx internal/agent-gate-eval/src/run.ts \
                  --suite "$suite" --runs "$MUGGLE_DO_EVAL_RUNS" \
                  --concurrency "$MUGGLE_DO_EVAL_CONCURRENCY" \
+                 --brain-dir "$MUGGLE_BRAIN_DIR" \
                  ${CADENCE:+--cadence "$CADENCE"}; then
               echo "PASS $suite"
             else
@@ -590,7 +655,7 @@ jobs:
             echo "::endgroup::"
           done
           if [ "$total" -eq 0 ]; then
-            echo "No skill scenario files under internal/agent-gate-eval/scenarios" >&2
+            echo "No skill scenario files under $AGENT_SCENARIOS_DIR" >&2
             exit 1
           fi
           exit "$fail"
@@ -602,7 +667,7 @@ jobs:
         run: |
           set -uo pipefail
           md="### 🔁 muggle-do eval"$'\n'
-          for results in internal/agent-gate-eval/scenarios/*.results.json; do
+          for results in "$AGENT_SCENARIOS_DIR"/*.results.json; do
             [ -f "$results" ] || continue
             md+="$(node -e '
               const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -642,6 +707,7 @@ jobs:
       # Safe above the old default of 3 now that router_eval retries throttled
       # runs with a pool-wide backoff instead of scoring them as `none`.
       ROUTING_WORKERS: ${{ inputs.routing_workers || '6' }}
+      MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
       # The base ref's plugin, installed apart from the PR's: a failing scoped
       # verdict is re-measured against it side by side before it fails.
@@ -719,6 +785,23 @@ jobs:
             echo "Routing-relevant skills: $relevant"
           fi
 
+      - name: Require the scenario repo deploy key
+        if: steps.scope.outputs.should_run == 'true'
+        env:
+          BRAIN_DEPLOY_KEY: ${{ secrets.BRAIN_DEPLOY_KEY }}
+        run: |
+          : "${BRAIN_DEPLOY_KEY:?set the BRAIN_DEPLOY_KEY repo secret (private half of a read-only deploy key on multiplex-ai/muggle-ai-brain)}"
+
+      # The eval set and the recorded baselines live in muggle-ai-brain;
+      # skill-gate-eval's checkout step says why a deploy key.
+      - name: Checkout scenario data (muggle-ai-brain)
+        if: steps.scope.outputs.should_run == 'true'
+        uses: actions/checkout@v6
+        with:
+          repository: multiplex-ai/muggle-ai-brain
+          ssh-key: ${{ secrets.BRAIN_DEPLOY_KEY }}
+          path: muggle-ai-brain
+
       - name: Setup Node.js
         if: steps.scope.outputs.should_run == 'true'
         uses: actions/setup-node@v6
@@ -730,6 +813,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      # ci.yml has no brain checkout, so there this suite's baseline-against-eval-set
+      # tests skip; here they hold the data the sweep is about to read.
+      - name: Unit-test the gate against the recorded baseline
+        if: steps.scope.outputs.should_run == 'true'
+        run: python -m unittest discover -s internal/skill-routing-eval -p "test_regression_gate.py" -v
 
       - name: Install Claude Code CLI
         if: steps.scope.outputs.should_run == 'true'
@@ -851,7 +940,7 @@ jobs:
         run: |
           set -euo pipefail
           unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-          # Both modes gate against internal/skill-routing-eval/recall-baseline.json: a
+          # Both modes gate against muggle-ai-brain's eval/skill-routing-eval/recall-baseline.json: a
           # skill fails when it lands below its own recorded recall by more than
           # routing noise, or when it collapses toward zero. An absolute bar
           # cannot work here: routing is stochastic and master itself sits at
@@ -864,18 +953,18 @@ jobs:
           if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
             python internal/skill-routing-eval/run.py \
               --all --runs "$ROUTING_RUNS" --workers "$ROUTING_WORKERS" \
-              --repo-root "$CLEAN_CWD" --gate \
+              --repo-root "$CLEAN_CWD" --brain-dir "$MUGGLE_BRAIN_DIR" --gate \
               --record-baseline "$BASELINE_CANDIDATE"
           else
             python internal/skill-routing-eval/run.py \
               --skills "${{ steps.scope.outputs.skills }}" \
               --runs "$ROUTING_RUNS_SCOPED" --workers "$ROUTING_WORKERS" \
-              --repo-root "$CLEAN_CWD" --gate \
+              --repo-root "$CLEAN_CWD" --brain-dir "$MUGGLE_BRAIN_DIR" --gate \
               --control-config-dir "$CONTROL_CONFIG_DIR"
           fi
 
-      # Only a human promotes a measurement to the baseline: the sweep publishes
-      # its tallies as an artifact and stops there.
+      # Only a human promotes a measurement to the baseline, in a muggle-ai-brain
+      # PR: the sweep publishes its tallies as an artifact and stops there.
       - name: Upload baseline candidate
         if: always() && steps.scope.outputs.should_run == 'true' && steps.scope.outputs.full == 'true'
         uses: actions/upload-artifact@v7

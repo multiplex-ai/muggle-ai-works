@@ -10,6 +10,10 @@ on a scoped run, a second measurement of the failing skills on a full sweep) —
 plus an optional cache sync so `claude -p` tests the working-tree descriptions
 rather than the installed copy.
 
+The eval set and the recorded baselines live in a muggle-ai-brain checkout,
+under eval/skill-routing-eval/: the one `--brain-dir` names, else
+$MUGGLE_BRAIN_DIR, else ../muggle-ai-brain.
+
 Usage:
     python internal/skill-routing-eval/run.py --all
     python internal/skill-routing-eval/run.py --skill muggle-status
@@ -34,6 +38,8 @@ import sys
 from pathlib import Path
 
 import codex_session
+from eval_data import resolve_routing_data_dir
+from eval_data_constants import BRAIN_DIR_ENV_VAR, EVAL_SET_FILENAME
 from gate_constants import (
     BASELINE_FILENAME,
     BASELINE_SOURCE_FULL_SWEEP,
@@ -64,9 +70,8 @@ from scoring import NONE, scored_pass
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]  # internal/skill-routing-eval -> repo root
-EVAL_SET = HERE / "eval-set.json"
 # Each host routes on its own model, so each is gated against its own recorded recall.
-BASELINE_BY_HOST = {Host.CLAUDE: HERE / BASELINE_FILENAME, Host.CODEX: HERE / CODEX_BASELINE_FILENAME}
+BASELINE_FILENAME_BY_HOST = {Host.CLAUDE: BASELINE_FILENAME, Host.CODEX: CODEX_BASELINE_FILENAME}
 # Kept apart so a Codex run never overwrites the Claude report checked in under reports/run.
 OUT_DIR_BY_HOST = {Host.CLAUDE: HERE / "reports" / "run", Host.CODEX: HERE / "reports" / "run-codex"}
 ROUTER = HERE / "router_eval.py"
@@ -135,10 +140,11 @@ def main():
     ap.add_argument("--timeout", type=int, default=200)
     ap.add_argument("--out-dir", help="where the reports go; defaults to reports/run, or reports/run-codex under --host codex")
     ap.add_argument("--repo-root", default=str(REPO_ROOT))
+    ap.add_argument("--brain-dir", help=f"the muggle-ai-brain checkout holding the eval set and baselines; defaults to ${BRAIN_DIR_ENV_VAR}, then ../muggle-ai-brain")
     ap.add_argument("--sync-cache", action="store_true", help="copy working-tree descriptions into the installed plugin cache first")
     # Off by default, so dev runs stay informational and never fail the process.
     ap.add_argument("--gate", action="store_true", help="CI gate: exit 1 if a skill regressed against the recorded baseline or collapsed")
-    ap.add_argument("--baseline", help=f"recorded per-skill baseline the gate compares against; defaults to {BASELINE_FILENAME}, or {CODEX_BASELINE_FILENAME} under --host codex")
+    ap.add_argument("--baseline", help=f"recorded per-skill baseline the gate compares against; defaults to the brain checkout's {BASELINE_FILENAME}, or its {CODEX_BASELINE_FILENAME} under --host codex")
     ap.add_argument("--host", choices=[host.value for host in Host], default=Host.CLAUDE.value, help="the agent CLI the sessions run in")
     ap.add_argument("--record-baseline", help="write this run's per-skill tallies to PATH as a baseline candidate (full sweeps only)")
     ap.add_argument("--control-config-dir", help="a Claude config dir with the base ref's plugin installed; before the gate fails, it re-measures the failing skills against that plugin side by side and fails only if the drop survives")
@@ -172,7 +178,15 @@ def main():
             n = sync_cache(repo_root, cache)
             print(f"synced {n} descriptions -> {cache}", file=sys.stderr)
 
-    eval_set = json.loads(EVAL_SET.read_text(encoding="utf-8"))
+    routing_data_dir = resolve_routing_data_dir(args.brain_dir)
+    eval_set_path = routing_data_dir / EVAL_SET_FILENAME
+    if not eval_set_path.exists():
+        print(
+            f"no eval set at {eval_set_path} — pass --brain-dir or set {BRAIN_DIR_ENV_VAR} to a muggle-ai-brain checkout",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    eval_set = json.loads(eval_set_path.read_text(encoding="utf-8"))
     by_skill = collections.defaultdict(list)
     for item in eval_set:
         by_skill[item.get("expected_skill", NONE)].append(item)
@@ -263,7 +277,7 @@ def main():
     if not args.gate:
         return
 
-    baseline_path = Path(args.baseline) if args.baseline else BASELINE_BY_HOST[host]
+    baseline_path = Path(args.baseline) if args.baseline else routing_data_dir / BASELINE_FILENAME_BY_HOST[host]
     if not baseline_path.exists():
         print(f"GATE FAILED: no recorded baseline at {baseline_path} — nothing to compare this run against", file=sys.stderr)
         sys.exit(1)

@@ -50,8 +50,8 @@ describe.runIf(hasBash)("skill-eval routing scope — harness changes", () => {
     expect(triggersSweep(["internal/skill-routing-eval/scoring.py"])).toBe(true);
   });
 
-  it("sweeps when the recorded baseline changes", () => {
-    expect(triggersSweep(["internal/skill-routing-eval/recall-baseline.json"])).toBe(true);
+  it("sweeps when the gate's tuning changes", () => {
+    expect(triggersSweep(["internal/skill-routing-eval/gate_constants.py"])).toBe(true);
   });
 
   it("sweeps when scoring code ships alongside its own tests", () => {

@@ -2,6 +2,7 @@
 
 import { DEFAULT_GATE_EVAL_CONCURRENCY } from "../../skill-gate-eval/src/constants.js";
 import { EvalHost } from "../../skill-gate-eval/src/types.js";
+import { brainScenariosDir } from "./brain-scenarios.js";
 import { DEFAULT_AGENT_RUNS } from "./constants.js";
 import { ScenarioCadence, type EvalCliArgs } from "./types.js";
 
@@ -18,6 +19,8 @@ function parsePositiveInteger(raw: string, flag: string): number {
  *
  * Output shape: `EvalCliArgs` — `--suite` and the legacy `--agent` both name one
  * scenario file by stem; `--agent` additionally requires that file to target an agent.
+ * `scenariosDir` is `--scenarios-dir`, else the scenarios directory of the brain checkout
+ * `--brain-dir` names (see `resolveBrainDir`).
  *
  * @throws on an unknown host or cadence, a non-positive count, or both `--suite` and `--agent`.
  */
@@ -57,7 +60,7 @@ export function parseEvalCliArgs(argv: string[]): EvalCliArgs {
     runs: parsePositiveInteger(values.runs ?? String(DEFAULT_AGENT_RUNS), "runs"),
     agentsDir: values["agents-dir"] ?? "plugin/agents",
     skillsDir: values["skills-dir"] ?? "plugin/skills",
-    scenariosDir: values["scenarios-dir"] ?? "internal/agent-gate-eval/scenarios",
+    scenariosDir: values["scenarios-dir"] ?? brainScenariosDir(values["brain-dir"]),
     concurrency: parsePositiveInteger(concurrencyRaw, "concurrency"),
     scenarioFilter: values.scenario,
     cadence: cadence,

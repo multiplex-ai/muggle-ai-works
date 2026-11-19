@@ -1,6 +1,7 @@
 /**
  * CLI entrypoint: run scenario suites N times per scenario, aggregate
  * per-scenario pass rates, and write each suite's results beside its file.
+ * The suites live in muggle-ai-brain/eval/agent-gate-eval/scenarios/.
  *
  * Usage:
  *   tsx internal/agent-gate-eval/src/run.ts \
@@ -8,7 +9,8 @@
  *     [--agent <name>]            # legacy --suite that also requires an agent target
  *     [--runs 5] \
  *     [--agents-dir plugin/agents] [--skills-dir plugin/skills] \
- *     [--scenarios-dir internal/agent-gate-eval/scenarios] \
+ *     [--brain-dir ../muggle-ai-brain]  # the brain checkout holding the suites; MUGGLE_BRAIN_DIR env also works
+ *     [--scenarios-dir <dir>]     # read suites from this directory instead of the brain checkout
  *     [--concurrency 8]           # parallel reps; AGENT_GATE_EVAL_CONCURRENCY env also works
  *     [--scenario <substring>]    # only run scenarios whose name contains this
  *     [--cadence pr|nightly]      # pr drops nightly-only scenarios; unset runs all

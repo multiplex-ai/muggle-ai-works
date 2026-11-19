@@ -20,6 +20,7 @@ import {
   type SeedTranscript,
   type TranscriptMaterializeContext,
 } from "../src/types.js";
+import { describeWithShippedScenarios, shippedScenariosDir } from "./support/shipped-scenarios.js";
 
 const packageDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoPluginRoot = path.resolve(packageDir, "..", "..", "plugin");
@@ -224,8 +225,8 @@ describe("resumeFromSeedTranscript", () => {
   });
 });
 
-describe("shipped scenario transcripts", () => {
-  const scenariosDir = path.join(packageDir, "scenarios");
+describeWithShippedScenarios("shipped scenario transcripts", () => {
+  const scenariosDir = shippedScenariosDir();
   const transcriptScenarios = listScenarioStems(scenariosDir).flatMap((stem) =>
     loadAgentScenarioFile(path.join(scenariosDir, `${stem}.json`))
       .scenarios.filter((scenario) => scenario.seed?.transcript)

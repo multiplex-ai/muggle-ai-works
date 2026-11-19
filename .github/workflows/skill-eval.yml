@@ -153,20 +153,21 @@ jobs:
         if: steps.scope.outputs.should_run == 'true'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          BRAIN_REPO_TOKEN: ${{ secrets.BRAIN_REPO_TOKEN }}
+          BRAIN_DEPLOY_KEY: ${{ secrets.BRAIN_DEPLOY_KEY }}
         run: |
           : "${CLAUDE_CODE_OAUTH_TOKEN:?set the CLAUDE_CODE_OAUTH_TOKEN repo secret (run \`claude setup-token\`) to run skill evals}"
-          : "${BRAIN_REPO_TOKEN:?set the BRAIN_REPO_TOKEN repo secret (read access to multiplex-ai/muggle-ai-brain)}"
+          : "${BRAIN_DEPLOY_KEY:?set the BRAIN_DEPLOY_KEY repo secret (private half of a read-only deploy key on multiplex-ai/muggle-ai-brain)}"
 
-      # Scenario data lives in a separate private repo; needs a token with read
-      # access to multiplex-ai/muggle-ai-brain (the default GITHUB_TOKEN cannot
-      # read other private repos).
+      # Scenario data lives in a separate private repo the default GITHUB_TOKEN
+      # cannot read. A read-only deploy key clones it over SSH, which spends no
+      # GitHub API quota — a personal token here shares its owner's 5,000/hour
+      # with every local tool, and fails the checkout whenever they drain it.
       - name: Checkout scenario data (muggle-ai-brain)
         if: steps.scope.outputs.should_run == 'true'
         uses: actions/checkout@v6
         with:
           repository: multiplex-ai/muggle-ai-brain
-          token: ${{ secrets.BRAIN_REPO_TOKEN }}
+          ssh-key: ${{ secrets.BRAIN_DEPLOY_KEY }}
           path: muggle-ai-brain
 
       - name: Setup Node.js

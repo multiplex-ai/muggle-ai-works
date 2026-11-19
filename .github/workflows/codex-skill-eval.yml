@@ -362,17 +362,17 @@ jobs:
         if: steps.scope.outputs.should_run == 'true' && steps.auth.outputs.ready != 'true'
         run: echo "::notice title=Codex gate eval skipped::Set the OPENAI_API_KEY or CODEX_AUTH_JSON repo secret to run the skill-gate eval under Codex."
 
-      - name: Check for the scenario repo token
+      - name: Check for the scenario repo deploy key
         id: brain
         if: steps.auth.outputs.ready == 'true'
         env:
-          BRAIN_REPO_TOKEN: ${{ secrets.BRAIN_REPO_TOKEN }}
+          BRAIN_DEPLOY_KEY: ${{ secrets.BRAIN_DEPLOY_KEY }}
         run: |
-          if [ -n "$BRAIN_REPO_TOKEN" ]; then
+          if [ -n "$BRAIN_DEPLOY_KEY" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Codex gate eval skipped::Set BRAIN_REPO_TOKEN, which skill-gate-eval already uses, to run the gate eval under Codex."
+            echo "::notice title=Codex gate eval skipped::Set BRAIN_DEPLOY_KEY, which skill-gate-eval already uses, to run the gate eval under Codex."
           fi
 
       - name: Checkout scenario data (muggle-ai-brain)
@@ -380,7 +380,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: multiplex-ai/muggle-ai-brain
-          token: ${{ secrets.BRAIN_REPO_TOKEN }}
+          ssh-key: ${{ secrets.BRAIN_DEPLOY_KEY }}
           path: muggle-ai-brain
 
       - name: Setup Node.js

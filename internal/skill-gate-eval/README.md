@@ -122,11 +122,12 @@ pins that, and if it ever fails the scope rule has to widen with it. Label a PR
 refactor that changes how skills run, not their definitions.
 It checks out `muggle-ai-brain` for the scenarios, so
 CI needs two repo secrets: `CLAUDE_CODE_OAUTH_TOKEN` (subscription auth, from
-`claude setup-token`) and `BRAIN_REPO_TOKEN` (read access to the scenario repo).
+`claude setup-token`) and `BRAIN_DEPLOY_KEY` (the private half of a read-only
+deploy key on the scenario repo; an SSH clone spends no GitHub API quota).
 
 `CLAUDE_CODE_OAUTH_TOKEN_2`, `_3` and `_4` are optional secrets holding
 **spare subscription tokens**, ideally from other accounts, since a weekly
-usage limit applies to a whole account — `BRAIN_REPO_TOKEN` is repo-read auth
+usage limit applies to a whole account — `BRAIN_DEPLOY_KEY` is repo-read auth
 and unrelated. Every eval job probes the tokens in order before it starts work
 and runs on the first that authenticates, so a rejected or throttled token no
 longer red-lines the suite. A fallback raises a workflow warning rather than
@@ -137,4 +138,4 @@ unset to run single-token.
 
 ### Codex (not blocking)
 
-`.github/workflows/codex-skill-eval.yml` runs every gate under Codex nightly, on demand, and on PRs whose change Codex's runs can see. That is the `full` decision of `scripts/skill-eval-scope.sh`, or a change to `_shared/host-tool-equivalents.md`. A `model:`-only change is skipped, since Codex ignores `model:`. The job needs the `OPENAI_API_KEY` repo secret, handed to Codex as `CODEX_API_KEY`, as well as `BRAIN_REPO_TOKEN`. Without them it posts a notice and passes. It is not a required check, and each scenario must hold the same 80%.
+`.github/workflows/codex-skill-eval.yml` runs every gate under Codex nightly, on demand, and on PRs whose change Codex's runs can see. That is the `full` decision of `scripts/skill-eval-scope.sh`, or a change to `_shared/host-tool-equivalents.md`. A `model:`-only change is skipped, since Codex ignores `model:`. The job needs a Codex credential — the `OPENAI_API_KEY` repo secret, handed to Codex as `CODEX_API_KEY`, or `CODEX_AUTH_JSON` (plus optional `_2`–`_5`) subscription logins — as well as `BRAIN_DEPLOY_KEY`. Without them it posts a notice and passes. It is not a required check, and each scenario must hold the same 80%.

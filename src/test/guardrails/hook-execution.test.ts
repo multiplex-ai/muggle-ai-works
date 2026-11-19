@@ -155,8 +155,8 @@ describe("guardrail hook execution (cli entry)", () => {
     );
     const gate = JSON.parse(runHook("watch-gate", event({ session_id: session })).out);
     expect(gate.decision).toBe("block");
-    expect(gate.reason).toContain("no live muggle-pr-followup watch");
-    expect(gate.reason).toContain("arm-watcher.md");
+    expect(gate.reason).toContain("has no live watch");
+    expect(gate.reason).toContain("muggle-pr-followup https://github.com/o/r/pull/77");
     expect(gate.reason).toContain("https://github.com/o/r/pull/77");
     expect(gate.reason).toContain("MUGGLE_WATCH_SKIP");
   });
@@ -220,7 +220,7 @@ describe("guardrail hook execution (cli entry)", () => {
     seedWatchSlot("r-pr80", url);
     const gate = JSON.parse(runHook("watch-gate", event({ session_id: session })).out);
     expect(gate.decision).toBe("block");
-    expect(gate.reason).toContain("A seeded slot does not count");
+    expect(gate.reason).toContain("has no live watch");
   });
 
   // Post-merge cleanup deletes the slot, so a merge the session saw must clear

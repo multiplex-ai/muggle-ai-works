@@ -67,23 +67,23 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-local-run-steps-get",
   },
   {
-    "description": "Clear the local taste profile (~/.muggle-ai/taste/profile.json), or only one project's section when projectId is given. The signal journal and any uploaded profile are untouched; delete the uploaded one with muggle-remote-taste-profile-delete.",
+    "description": "Clear the local taste profile (~/.muggle-ai/taste/profile.json), or only one project's section when projectId is given. A full clear also removes ~/.muggle-ai/taste/profile.md and the upload state. The signal journal and any uploaded profile are untouched; delete the uploaded one with muggle-remote-taste-profile-delete.",
     "name": "muggle-local-taste-profile-clear",
   },
   {
-    "description": "Get the local taste profile (~/.muggle-ai/taste/profile.json) with each section's character count (statements, contexts and evidence excerpts) against the budget. Returns JSON { path, characterBudget, userSectionCharacters, projectSectionCharacters, profile: { userSection, projectSections } }; an unbuilt profile has a null userSection and no projectSections.",
+    "description": "Get the local taste profile (~/.muggle-ai/taste/profile.json) with each section's character count (statements, contexts and evidence excerpts) against the budget. Returns JSON { path, viewPath (readable profile.md), sectionUploadStatus: { <user|projectId>: { status: never-uploaded|matches-uploaded-copy|changed-since-upload, uploadedAt } }, characterBudget, userSectionCharacters, projectSectionCharacters, profile: { userSection, projectSections } }; an unbuilt profile has a null userSection and no projectSections.",
     "name": "muggle-local-taste-profile-get",
   },
   {
-    "description": "Write distilled sections to the local taste profile (~/.muggle-ai/taste/profile.json). Each named section replaces the stored one; others are kept. Each preference carries its conclusion (statement), the context it applies in (appliesWhen), its category, signalCount (supporting journal signals) and lastSeenAt (ISO-8601 time of the newest one), and 1–3 evidence entries, newest first, each { kind, excerpt (the user's own words, at most 300 characters, screened before upload), sourceRef, recordedAt } copied from the journal. Rank preferences by signalCount, then lastSeenAt; distilledAt is the ISO-8601 time the section was distilled. Refuses a section whose statements, contexts and evidence excerpts total more than 8000 characters. Nothing is uploaded; that is muggle-remote-taste-profile-upload.",
+    "description": "Write distilled sections to the local taste profile (~/.muggle-ai/taste/profile.json). Each named section replaces the stored one; others are kept. Each preference carries its conclusion (statement), the context it applies in (appliesWhen), its category, discipline (WebUi, MobileApp, VideoEditing, ImageGeneration, or General only when its signals span two or more disciplines), signalCount (supporting journal signals) and lastSeenAt (ISO-8601 time of the newest one), and 1–3 evidence entries, newest first, each { kind, excerpt (the user's own words, at most 300 characters, screened before upload), sourceRef, recordedAt } copied from the journal. Rank preferences by signalCount, then lastSeenAt; distilledAt is the ISO-8601 time the section was distilled. Refuses a section whose statements, contexts and evidence excerpts total more than 8000 characters. Re-renders the readable ~/.muggle-ai/taste/profile.md. Nothing is uploaded; that is muggle-remote-taste-profile-upload.",
     "name": "muggle-local-taste-profile-set",
   },
   {
-    "description": "Append one taste signal to the local, append-only journal (~/.muggle-ai/taste/signals.jsonl). Call it when a Muggle flow sees the user's taste: a review comment a muggle-do cycle addressed (kind ReviewComment, with its classification), E2E feedback the user submitted (E2eFeedback), or the goal and criteria of a request the user approved (ApprovedRequest). The journal never leaves the machine; /muggle-taste-profile distills it into the profile, and only the short screened excerpts it picks as evidence are uploaded.",
+    "description": "Append one taste signal to the local, append-only journal (~/.muggle-ai/taste/signals.jsonl). Call it when a Muggle flow sees the user's taste: a review comment a muggle-do cycle addressed (kind ReviewComment, with its classification), E2E feedback the user submitted (E2eFeedback), or the goal and criteria of a request the user approved (ApprovedRequest). Pass the discipline of the work (WebUi for web app work). The journal never leaves the machine; /muggle-taste-profile distills it into the profile, and only the short screened excerpts it picks as evidence are uploaded.",
     "name": "muggle-local-taste-signal-append",
   },
   {
-    "description": "List taste signals from the local journal (~/.muggle-ai/taste/signals.jsonl), oldest first, optionally narrowed by projectId, kind, or the newest N. Returns JSON { count, signals: [{ kind, text, projectId, classification, sourceRef, recordedAt }] }.",
+    "description": "List taste signals from the local journal (~/.muggle-ai/taste/signals.jsonl), oldest first, optionally narrowed by projectId, kind, or the newest N. Returns JSON { count, signals: [{ kind, discipline, text, projectId, classification, sourceRef, recordedAt }] }; a signal recorded without a discipline reads as WebUi.",
     "name": "muggle-local-taste-signal-list",
   },
   {
@@ -335,7 +335,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-taste-profile-get",
   },
   {
-    "description": "Upload the local taste profile (from muggle-local-taste-profile-set) so Muggle Test runs use it as guidance. Screens every statement, context and evidence excerpt first, redacting API keys, tokens, JWTs, private keys, emails and password-like key=value pairs; the raw signal journal is never sent, only the short excerpts the profile cites as evidence. Honors the tasteProfileUpload preference: 'never' refuses, 'ask' returns outcome 'needs-consent' with the screened profile until called with hasUserApprovedThisUpload: true, 'always' uploads. Replaces each uploaded section remotely and keeps the rest. Returns { outcome, message, redactionCount, hasUploadedUserSection, uploadedProjectIds, remoteProfile }.",
+    "description": "Upload the local taste profile (from muggle-local-taste-profile-set) so Muggle Test runs use it as guidance. Screens every statement, context and evidence excerpt first, redacting API keys, tokens, JWTs, private keys, emails and password-like key=value pairs; the raw signal journal is never sent, only the short excerpts the profile cites as evidence. Honors the tasteProfileUpload preference: 'never' refuses, 'ask' returns outcome 'needs-consent' with the screened profile until called with hasUserApprovedThisUpload: true, 'always' uploads. Replaces each uploaded section remotely and keeps the rest; records each section's upload state and re-renders the readable ~/.muggle-ai/taste/profile.md. Returns { outcome, message, redactionCount, hasUploadedUserSection, uploadedProjectIds, remoteProfile }.",
     "name": "muggle-remote-taste-profile-upload",
   },
   {

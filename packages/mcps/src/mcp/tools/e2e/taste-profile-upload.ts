@@ -8,9 +8,11 @@ import { PreferenceKey } from "../../../shared/preferences-types.js";
 import {
   findOverBudgetSections,
   isTasteProfileEmpty,
-  readTasteProfile,
+  readLocalTasteProfile,
+  recordTasteProfileUploadAndRender,
   resolveTasteProfileUploadDecision,
   screenTasteProfile,
+  TASTE_SECTION_CHARACTER_BUDGET,
   TasteProfileUploadDecision,
   type ITasteProfileSectionUpdate,
 } from "../../../shared/taste-profile/index.js";
@@ -24,6 +26,7 @@ import { TASTE_PROFILE_PATH } from "./upstream-route-constants.js";
 
 /**
  * Read the local profile, apply the `tasteProfileUpload` gate, screen it and PUT every section it holds.
+ * A successful upload records each section's upload state and re-renders `profile.md`.
  * @param uploadRequest - Consent for this upload, the correlation id, and an optional data dir.
  * @returns The outcome; only `uploaded` means anything left the machine.
  * @throws GatewayError when the backend call fails.
@@ -31,7 +34,7 @@ import { TASTE_PROFILE_PATH } from "./upstream-route-constants.js";
 export async function uploadTasteProfileAsync(
   uploadRequest: ITasteProfileUploadRequest,
 ): Promise<ITasteProfileUploadResult> {
-  const localProfile = readTasteProfile(uploadRequest.dataDirOverride);
+  const localProfile = readLocalTasteProfile(uploadRequest.dataDirOverride);
   if (isTasteProfileEmpty(localProfile)) {
     return {
       outcome: TasteProfileUploadOutcome.NothingToUpload,
@@ -68,7 +71,7 @@ export async function uploadTasteProfileAsync(
   if (overBudgetSections.length > 0) {
     return {
       outcome: TasteProfileUploadOutcome.OverBudget,
-      message: "Some sections exceed the 4,000-character budget. Rebuild them shorter, then upload again.",
+      message: `Some sections exceed the ${TASTE_SECTION_CHARACTER_BUDGET.toLocaleString("en-US")}-character budget. Rebuild them shorter, then upload again.`,
       redactionCount: screenResult.redactionCount,
       overBudgetSections: overBudgetSections,
     };
@@ -80,6 +83,7 @@ export async function uploadTasteProfileAsync(
     credentials,
     uploadRequest.correlationId,
   );
+  recordTasteProfileUploadAndRender(screenResult.screenedProfile, new Date().toISOString(), uploadRequest.dataDirOverride);
 
   return {
     outcome: TasteProfileUploadOutcome.Uploaded,

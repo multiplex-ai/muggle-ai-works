@@ -17,7 +17,13 @@ import {
   readTasteProfile,
   writeTasteProfileSections,
 } from "../shared/taste-profile/taste-profile-store.js";
-import { TasteCategory, TasteSignalKind, type ITasteEvidence, type ITasteSection } from "../shared/taste-profile/types.js";
+import {
+  TasteCategory,
+  TasteDiscipline,
+  TasteSignalKind,
+  type ITasteEvidence,
+  type ITasteSection,
+} from "../shared/taste-profile/types.js";
 import { TasteProfileSetInputSchema } from "../mcp/local/contracts/taste-profile-schemas.js";
 
 function buildEvidence(excerpt: string = "e"): ITasteEvidence {
@@ -32,6 +38,7 @@ function buildSection(statement: string, evidence: ITasteEvidence[] = [buildEvid
         appliesWhen: "c",
         evidence: evidence,
         category: TasteCategory.Copy,
+        discipline: TasteDiscipline.WebUi,
         signalCount: 2,
         lastSeenAt: "2026-11-01T00:00:00.000Z",
       },
@@ -83,6 +90,23 @@ describe("taste profile store", () => {
     expect(fs.existsSync(getTasteProfilePath(dataDir))).toBe(false);
     expect(isTasteProfileEmpty(readTasteProfile(dataDir))).toBe(true);
   });
+
+
+  it("reads a preference stored without a discipline as WebUi", () => {
+    const { discipline: _omitted, ...legacyPreference } = buildSection("legacy").preferences[0];
+    fs.mkdirSync(path.dirname(getTasteProfilePath(dataDir)), { recursive: true });
+    fs.writeFileSync(
+      getTasteProfilePath(dataDir),
+      JSON.stringify({
+        userSection: { preferences: [legacyPreference], distilledAt: "2026-11-02T00:00:00.000Z" },
+        projectSections: { p1: { preferences: [legacyPreference], distilledAt: "2026-11-02T00:00:00.000Z" } },
+      }),
+    );
+
+    const storedProfile = readTasteProfile(dataDir);
+    expect(storedProfile.userSection?.preferences[0].discipline).toBe(TasteDiscipline.WebUi);
+    expect(storedProfile.projectSections.p1.preferences[0].discipline).toBe(TasteDiscipline.WebUi);
+  });
 });
 
 describe("taste section budget", () => {
@@ -114,6 +138,17 @@ describe("TasteProfileSetInputSchema", () => {
   ])("rejects a preference with %s", (_label, invalidPreference) => {
     const invalidSection = { preferences: [invalidPreference], distilledAt: "2026-11-02T00:00:00.000Z" };
     expect(TasteProfileSetInputSchema.safeParse({ userSection: invalidSection }).success).toBe(false);
+  });
+
+  it("requires a known discipline on every preference", () => {
+    const { discipline: _omitted, ...noDiscipline } = buildSection("x").preferences[0];
+    const sectionWith = (preference: unknown) => ({ preferences: [preference], distilledAt: "2026-11-02T00:00:00.000Z" });
+
+    expect(TasteProfileSetInputSchema.safeParse({ userSection: sectionWith(noDiscipline) }).success).toBe(false);
+    expect(TasteProfileSetInputSchema.safeParse({ userSection: sectionWith({ ...noDiscipline, discipline: "Pottery" }) }).success).toBe(false);
+    for (const discipline of Object.values(TasteDiscipline)) {
+      expect(TasteProfileSetInputSchema.safeParse({ userSection: sectionWith({ ...noDiscipline, discipline: discipline }) }).success).toBe(true);
+    }
   });
 
   it("rejects an empty update, an unknown category and a zero signal count", () => {

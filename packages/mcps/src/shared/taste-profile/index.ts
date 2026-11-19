@@ -6,3 +6,8 @@ export * from "./taste-profile-store.js";
 export * from "./taste-profile-budget.js";
 export * from "./taste-profile-screen.js";
 export * from "./taste-profile-upload-gate.js";
+export * from "./taste-named-sections.js";
+export * from "./taste-profile-view-renderer.js";
+export * from "./taste-upload-state-store.js";
+export * from "./taste-upload-status.js";
+export * from "./taste-profile-service.js";

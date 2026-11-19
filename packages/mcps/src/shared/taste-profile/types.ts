@@ -28,9 +28,25 @@ export enum TasteSignalKind {
   ApprovedRequest = "ApprovedRequest",
 }
 
+/** Kind of work a taste belongs to; a consumer applies only its own discipline's taste plus General. Values match the prompt-service contract. */
+export enum TasteDiscipline {
+  /** Web application user interfaces. */
+  WebUi = "WebUi",
+  /** Native or mobile application user interfaces. */
+  MobileApp = "MobileApp",
+  /** Cutting, pacing and finishing video. */
+  VideoEditing = "VideoEditing",
+  /** Generated images and visual assets. */
+  ImageGeneration = "ImageGeneration",
+  /** Taste whose supporting signals span two or more disciplines. */
+  General = "General",
+}
+
 /** One piece of evidence of taste, as written to the local journal. Never uploaded. */
 export interface ITasteSignal {
   kind: TasteSignalKind;
+  /** Discipline of the work the signal came from; a signal without one counts as WebUi. */
+  discipline?: TasteDiscipline;
   /** The user's own words, or the approved goal and criteria. */
   text: string;
   /** Muggle Test project the signal belongs to; absent for a user-wide signal. */
@@ -74,6 +90,8 @@ export interface ITastePreference {
   /** The newest supporting signals, newest first; one to three entries. */
   evidence: ITasteEvidence[];
   category: TasteCategory;
+  /** Discipline the preference belongs to; a stored preference without one reads as WebUi. */
+  discipline: TasteDiscipline;
   /** Number of signals supporting the preference; at least 1. */
   signalCount: number;
   /** ISO-8601 time the newest supporting signal was seen. */
@@ -106,6 +124,12 @@ export interface ITasteSectionBudgetViolation {
   characterCount: number;
 }
 
+/** Result of screening one section before upload. */
+export interface ITasteSectionScreenResult {
+  screenedSection: ITasteSection;
+  redactionCount: number;
+}
+
 /**
  * Result of screening a profile before upload.
  *
@@ -114,6 +138,49 @@ export interface ITasteSectionBudgetViolation {
 export interface ITasteProfileScreenResult {
   screenedProfile: ITasteProfile;
   redactionCount: number;
+}
+
+/** What was last uploaded for one section. */
+export interface ITasteSectionUploadState {
+  /** ISO-8601 time the section was uploaded. */
+  uploadedAt: string;
+  /** Hash of the screened section's preferences as uploaded. */
+  screenedSectionHash: string;
+}
+
+/** Upload state per section, keyed by `user` for the user-wide section or by project id. */
+export type TasteUploadState = Record<string, ITasteSectionUploadState>;
+
+/** How a local section compares with the copy last uploaded for it. */
+export enum TasteSectionUploadStatus {
+  /** The section has never been uploaded. */
+  NeverUploaded = "never-uploaded",
+  /** The screened local section matches what was uploaded. */
+  MatchesUploadedCopy = "matches-uploaded-copy",
+  /** The screened local section differs from what was uploaded. */
+  ChangedSinceUpload = "changed-since-upload",
+}
+
+/**
+ * Upload status of one local section.
+ *
+ * Output shape: `{ status: "changed-since-upload", uploadedAt: "2026-11-17T10:00:00.000Z" }`
+ */
+export interface ITasteSectionUploadReport {
+  status: TasteSectionUploadStatus;
+  /** Absent when the section has never been uploaded. */
+  uploadedAt?: string;
+}
+
+/**
+ * The local profile with each section's upload status and where its readable copy lives.
+ *
+ * Output shape: `{ tasteProfile: { userSection, projectSections }, sectionUploadReports: { user: { status: "never-uploaded" } }, viewPath: "/home/u/.muggle-ai/taste/profile.md" }`
+ */
+export interface ITasteProfileOverview {
+  tasteProfile: ITasteProfile;
+  sectionUploadReports: Record<string, ITasteSectionUploadReport>;
+  viewPath: string;
 }
 
 /** What the upload gate decided for one upload attempt. */

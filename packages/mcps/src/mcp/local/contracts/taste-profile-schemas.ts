@@ -8,7 +8,7 @@ import {
   TASTE_EVIDENCE_EXCERPT_MAX_CHARACTERS,
   TASTE_EVIDENCE_MAX_PER_PREFERENCE,
 } from "../../../shared/taste-profile/constants.js";
-import { TasteCategory, TasteSignalKind } from "../../../shared/taste-profile/types.js";
+import { TasteCategory, TasteDiscipline, TasteSignalKind } from "../../../shared/taste-profile/types.js";
 
 const isoDateTimeSchema = z.string().datetime({ offset: true });
 
@@ -33,21 +33,23 @@ export const TasteEvidenceSchema = z.object({
 export const TastePreferenceSchema = z.object({
   statement: z.string().trim().min(1).describe("The conclusion."),
   appliesWhen: z.string().trim().min(1).describe("Where it holds; runs apply it only there."),
-  evidence: z.array(TasteEvidenceSchema).min(1).max(TASTE_EVIDENCE_MAX_PER_PREFERENCE).describe("Newest first."),
+  evidence: z.array(TasteEvidenceSchema).min(1).max(TASTE_EVIDENCE_MAX_PER_PREFERENCE),
   category: z.nativeEnum(TasteCategory),
+  discipline: z.nativeEnum(TasteDiscipline),
   signalCount: z.number().int().min(1),
   lastSeenAt: isoDateTimeSchema,
 });
 
 /** A user-wide or per-project section. */
 export const TasteSectionSchema = z.object({
-  preferences: z.array(TastePreferenceSchema).describe("Ranked by support, then recency."),
+  preferences: z.array(TastePreferenceSchema),
   distilledAt: isoDateTimeSchema,
 });
 
 /** Input for muggle-local-taste-signal-append. */
 export const TasteSignalAppendInputSchema = z.object({
   kind: z.nativeEnum(TasteSignalKind).describe("Flow the signal came from."),
+  discipline: z.nativeEnum(TasteDiscipline).optional().describe("Kind of work the signal came from; omitted counts as WebUi."),
   text: z.string().trim().min(1).describe("The user's own words, or the approved goal and criteria."),
   projectId: z.string().min(1).optional().describe("Muggle Test project the signal belongs to; omit when none."),
   classification: z.string().min(1).optional().describe("How the flow classified it, e.g. actionable or ambiguous."),

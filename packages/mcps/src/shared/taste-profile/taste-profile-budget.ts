@@ -2,7 +2,8 @@
  * Character budget checks for taste sections.
  */
 
-import { TASTE_SECTION_CHARACTER_BUDGET, TASTE_USER_SECTION_NAME } from "./constants.js";
+import { TASTE_SECTION_CHARACTER_BUDGET } from "./constants.js";
+import { listNamedTasteSections } from "./taste-named-sections.js";
 import type {
   ITastePreference,
   ITasteProfileSectionUpdate,
@@ -36,11 +37,7 @@ export function countSectionCharacters(tasteSection: ITasteSection): number {
  * @returns One entry per section over budget; empty when all fit.
  */
 export function findOverBudgetSections(sectionUpdate: ITasteProfileSectionUpdate): ITasteSectionBudgetViolation[] {
-  const namedSections: Array<[string, ITasteSection]> = [
-    ...(sectionUpdate.userSection ? [[TASTE_USER_SECTION_NAME, sectionUpdate.userSection] as [string, ITasteSection]] : []),
-    ...Object.entries(sectionUpdate.projectSections ?? {}),
-  ];
-  return namedSections
+  return listNamedTasteSections(sectionUpdate)
     .map(([sectionName, tasteSection]) => ({
       sectionName: sectionName,
       characterCount: countSectionCharacters(tasteSection),

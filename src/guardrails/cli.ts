@@ -32,7 +32,6 @@ import {
   MUGGLE_DO_STAGES_AFTER_BUILD,
   MUGGLE_DO_STAGES_BEFORE_BUILD,
   NEXT_OPTIONS_OFFER_TOOL_NAMES,
-  WATCH_HEARTBEAT_STALE_MS,
   WATCH_HOLD_PHRASE_PREFIX,
   WATCH_HOLD_TRANSCRIPT_TAIL_BYTES,
   REWAKE_HOOK_EVENTS,
@@ -649,19 +648,12 @@ function watchGate(): string {
   if (decision.action === WatchGateAction.None) return "{}";
   recordGateBlock("watchBlockCount", decision.blockCount);
   const prList = decision.unwatched.join(", ");
-  const staleMinutes = WATCH_HEARTBEAT_STALE_MS / 60_000;
   const armCommand = `${muggleSkill("/muggle:muggle-pr-followup")} ${decision.unwatched[0]}`;
-  // Full instruction once; repeats are one line — same rationale as e2eGate.
   const reason =
     decision.blockCount === 1
-      ? `Do not end the turn yet. A PR opened this session is open with no live muggle-pr-followup watch: ${prList}. ` +
-        `Arm its watch per the muggle-pr-followup arming procedure (arm-watcher.md) — invoking ${armCommand} ` +
-        `bootstraps it and arms it that way (add --resume when its slot already exists). A seeded slot does not ` +
-        `count: only a running watch loop does, shown by a watch-heartbeat it touches every poll and that goes stale ` +
-        `after ${staleMinutes} minutes (a watch armed moments ago writes it on its first poll). If the PR already ` +
-        `merged or closed, end the turn again — a provider check started now clears it. If it genuinely should not ` +
-        `be watched (autoWatchPR=never, handed off elsewhere), tell the user why and run ` +
-        `\`echo "MUGGLE_WATCH_SKIP: <reason>"\` — that records the skip and keeps this gate quiet for the rest of the session.`
+      ? `PR ${prList} has no live watch: arm it with \`${armCommand}\` (--resume if its slot exists). ` +
+        `Already merged or closed? End the turn again to clear this; otherwise skip with ` +
+        `\`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`
       : `PR watch still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): ` +
         `arm it per arm-watcher.md via ${armCommand} (--resume when its slot exists), or record a legitimate skip via ` +
         `\`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;

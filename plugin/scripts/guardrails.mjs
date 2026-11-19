@@ -3809,9 +3809,8 @@ function watchGate() {
   if (decision.action === "none" /* None */) return "{}";
   recordGateBlock("watchBlockCount", decision.blockCount);
   const prList = decision.unwatched.join(", ");
-  const staleMinutes = WATCH_HEARTBEAT_STALE_MS / 6e4;
   const armCommand = `${muggleSkill("/muggle:muggle-pr-followup")} ${decision.unwatched[0]}`;
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. A PR opened this session is open with no live muggle-pr-followup watch: ${prList}. Arm its watch per the muggle-pr-followup arming procedure (arm-watcher.md) \u2014 invoking ${armCommand} bootstraps it and arms it that way (add --resume when its slot already exists). A seeded slot does not count: only a running watch loop does, shown by a watch-heartbeat it touches every poll and that goes stale after ${staleMinutes} minutes (a watch armed moments ago writes it on its first poll). If the PR already merged or closed, end the turn again \u2014 a provider check started now clears it. If it genuinely should not be watched (autoWatchPR=never, handed off elsewhere), tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `PR watch still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): arm it per arm-watcher.md via ${armCommand} (--resume when its slot exists), or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
+  const reason = decision.blockCount === 1 ? `PR ${prList} has no live watch: arm it with \`${armCommand}\` (--resume if its slot exists). Already merged or closed? End the turn again to clear this; otherwise skip with \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.` : `PR watch still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): arm it per arm-watcher.md via ${armCommand} (--resume when its slot exists), or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function owedWatchWorkLine(work) {

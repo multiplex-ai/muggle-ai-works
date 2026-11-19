@@ -65,20 +65,21 @@ import { MUGGLE_HOME_DISPLAY_DIR } from "../../../shared/cwd-keyed-cache-constan
 import { EXECUTE_TEST_GENERATION_TOOL_NAME } from "./tool-name-constants.js";
 import {
   appendTasteSignal,
-  clearTasteProfile,
+  clearLocalTasteProfile,
   countSectionCharacters,
   findOverBudgetSections,
+  getLocalTasteProfileOverview,
   getTasteProfilePath,
   getTasteSignalJournalPath,
   listTasteSignals,
-  readTasteProfile,
   TASTE_DIR_NAME,
   TASTE_PROFILE_FILE_NAME,
+  TASTE_PROFILE_VIEW_FILE_NAME,
   TASTE_EVIDENCE_EXCERPT_MAX_CHARACTERS,
   TASTE_SECTION_CHARACTER_BUDGET,
   TASTE_SIGNAL_JOURNAL_FILE_NAME,
-  writeTasteProfileSections,
-  type ITasteProfile,
+  setLocalTasteProfileSections,
+  type ITasteProfileOverview,
 } from "../../../shared/taste-profile/index.js";
 import {
   cancelExecution,
@@ -880,10 +881,14 @@ const telemetryEventEmitTool: ILocalMcpTool = {
 
 const TASTE_JOURNAL_DISPLAY_PATH = `${MUGGLE_HOME_DISPLAY_DIR}/${TASTE_DIR_NAME}/${TASTE_SIGNAL_JOURNAL_FILE_NAME}`;
 const TASTE_PROFILE_DISPLAY_PATH = `${MUGGLE_HOME_DISPLAY_DIR}/${TASTE_DIR_NAME}/${TASTE_PROFILE_FILE_NAME}`;
+const TASTE_PROFILE_VIEW_DISPLAY_PATH = `${MUGGLE_HOME_DISPLAY_DIR}/${TASTE_DIR_NAME}/${TASTE_PROFILE_VIEW_FILE_NAME}`;
 
-function describeTasteProfile(tasteProfile: ITasteProfile): Record<string, unknown> {
+function describeTasteProfile(tasteProfileOverview: ITasteProfileOverview): Record<string, unknown> {
+  const tasteProfile = tasteProfileOverview.tasteProfile;
   return {
     path: getTasteProfilePath(),
+    viewPath: tasteProfileOverview.viewPath,
+    sectionUploadStatus: tasteProfileOverview.sectionUploadReports,
     characterBudget: TASTE_SECTION_CHARACTER_BUDGET,
     userSectionCharacters: tasteProfile.userSection ? countSectionCharacters(tasteProfile.userSection) : 0,
     projectSectionCharacters: Object.fromEntries(
@@ -902,6 +907,7 @@ const tasteSignalAppendTool: ILocalMcpTool = {
     `Append one taste signal to the local, append-only journal (${TASTE_JOURNAL_DISPLAY_PATH}). ` +
     "Call it when a Muggle flow sees the user's taste: a review comment a muggle-do cycle addressed (kind ReviewComment, with its classification), " +
     "E2E feedback the user submitted (E2eFeedback), or the goal and criteria of a request the user approved (ApprovedRequest). " +
+    "Pass the discipline of the work (WebUi for web app work). " +
     "The journal never leaves the machine; /muggle-taste-profile distills it into the profile, and only the short screened excerpts it picks as evidence are uploaded.",
   inputSchema: TasteSignalAppendInputSchema,
   execute: async (ctx) => {
@@ -911,6 +917,7 @@ const tasteSignalAppendTool: ILocalMcpTool = {
     const input = TasteSignalAppendInputSchema.parse(ctx.input);
     const appendedSignal = appendTasteSignal({
       kind: input.kind,
+      discipline: input.discipline,
       text: input.text,
       projectId: input.projectId,
       classification: input.classification,
@@ -928,7 +935,7 @@ const tasteSignalListTool: ILocalMcpTool = {
   name: "muggle-local-taste-signal-list",
   description:
     `List taste signals from the local journal (${TASTE_JOURNAL_DISPLAY_PATH}), oldest first, optionally narrowed by projectId, kind, or the newest N. ` +
-    "Returns JSON { count, signals: [{ kind, text, projectId, classification, sourceRef, recordedAt }] }.",
+    "Returns JSON { count, signals: [{ kind, discipline, text, projectId, classification, sourceRef, recordedAt }] }; a signal recorded without a discipline reads as WebUi.",
   inputSchema: TasteSignalListInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -948,14 +955,15 @@ const tasteProfileGetTool: ILocalMcpTool = {
   name: "muggle-local-taste-profile-get",
   description:
     `Get the local taste profile (${TASTE_PROFILE_DISPLAY_PATH}) with each section's character count (statements, contexts and evidence excerpts) against the budget. ` +
-    "Returns JSON { path, characterBudget, userSectionCharacters, projectSectionCharacters, profile: { userSection, projectSections } }; an unbuilt profile has a null userSection and no projectSections.",
+    "Returns JSON { path, viewPath (readable profile.md), sectionUploadStatus: { <user|projectId>: { status: never-uploaded|matches-uploaded-copy|changed-since-upload, uploadedAt } }, " +
+    "characterBudget, userSectionCharacters, projectSectionCharacters, profile: { userSection, projectSections } }; an unbuilt profile has a null userSection and no projectSections.",
   inputSchema: EmptyInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
     logger.info("Executing muggle-local-taste-profile-get");
 
     return {
-      content: JSON.stringify(describeTasteProfile(readTasteProfile()), null, 2),
+      content: JSON.stringify(describeTasteProfile(getLocalTasteProfileOverview()), null, 2),
       isError: false,
     };
   },
@@ -966,10 +974,12 @@ const tasteProfileSetTool: ILocalMcpTool = {
   description:
     `Write distilled sections to the local taste profile (${TASTE_PROFILE_DISPLAY_PATH}). Each named section replaces the stored one; others are kept. ` +
     "Each preference carries its conclusion (statement), the context it applies in (appliesWhen), its category, " +
+    "discipline (WebUi, MobileApp, VideoEditing, ImageGeneration, or General only when its signals span two or more disciplines), " +
     "signalCount (supporting journal signals) and lastSeenAt (ISO-8601 time of the newest one), and 1–3 evidence entries, newest first, " +
     `each { kind, excerpt (the user's own words, at most ${TASTE_EVIDENCE_EXCERPT_MAX_CHARACTERS} characters, screened before upload), sourceRef, recordedAt } copied from the journal. ` +
     "Rank preferences by signalCount, then lastSeenAt; distilledAt is the ISO-8601 time the section was distilled. " +
-    `Refuses a section whose statements, contexts and evidence excerpts total more than ${TASTE_SECTION_CHARACTER_BUDGET} characters. Nothing is uploaded; that is muggle-remote-taste-profile-upload.`,
+    `Refuses a section whose statements, contexts and evidence excerpts total more than ${TASTE_SECTION_CHARACTER_BUDGET} characters. ` +
+    `Re-renders the readable ${TASTE_PROFILE_VIEW_DISPLAY_PATH}. Nothing is uploaded; that is muggle-remote-taste-profile-upload.`,
   inputSchema: TasteProfileSetInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -992,9 +1002,9 @@ const tasteProfileSetTool: ILocalMcpTool = {
       };
     }
 
-    const writtenProfile = writeTasteProfileSections(input);
+    setLocalTasteProfileSections(input);
     return {
-      content: JSON.stringify(describeTasteProfile(writtenProfile), null, 2),
+      content: JSON.stringify(describeTasteProfile(getLocalTasteProfileOverview()), null, 2),
       isError: false,
     };
   },
@@ -1004,6 +1014,7 @@ const tasteProfileClearTool: ILocalMcpTool = {
   name: "muggle-local-taste-profile-clear",
   description:
     `Clear the local taste profile (${TASTE_PROFILE_DISPLAY_PATH}), or only one project's section when projectId is given. ` +
+    `A full clear also removes ${TASTE_PROFILE_VIEW_DISPLAY_PATH} and the upload state. ` +
     "The signal journal and any uploaded profile are untouched; delete the uploaded one with muggle-remote-taste-profile-delete.",
   inputSchema: TasteProfileClearInputSchema,
   execute: async (ctx) => {
@@ -1011,7 +1022,7 @@ const tasteProfileClearTool: ILocalMcpTool = {
     logger.info("Executing muggle-local-taste-profile-clear");
 
     const input = TasteProfileClearInputSchema.parse(ctx.input);
-    clearTasteProfile(input.projectId);
+    clearLocalTasteProfile(input.projectId);
 
     return {
       content: input.projectId

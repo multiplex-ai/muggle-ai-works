@@ -7,7 +7,7 @@ import * as path from "node:path";
 
 import { getTasteSignalJournalPath } from "../shared/taste-profile/taste-paths.js";
 import { appendTasteSignal, listTasteSignals } from "../shared/taste-profile/taste-signal-journal.js";
-import { TasteSignalKind } from "../shared/taste-profile/types.js";
+import { TasteDiscipline, TasteSignalKind } from "../shared/taste-profile/types.js";
 import { TasteSignalAppendInputSchema } from "../mcp/local/contracts/taste-profile-schemas.js";
 
 let dataDir: string;
@@ -70,6 +70,21 @@ describe("taste signal journal", () => {
     fs.appendFileSync(getTasteSignalJournalPath(dataDir), '{"kind":"ReviewComm\n{"kind":"Unknown","text":"x","recordedAt":"t"}\n');
 
     expect(listTasteSignals({}, dataDir).map((signal) => signal.text)).toEqual(["kept"]);
+  });
+
+  it("reads a signal recorded without a discipline as WebUi and keeps a named one", () => {
+    appendTasteSignal({ kind: TasteSignalKind.ReviewComment, text: "legacy" }, dataDir);
+    appendTasteSignal({ kind: TasteSignalKind.ReviewComment, text: "app", discipline: TasteDiscipline.MobileApp }, dataDir);
+
+    expect(listTasteSignals({}, dataDir).map((signal) => signal.discipline)).toEqual([
+      TasteDiscipline.WebUi,
+      TasteDiscipline.MobileApp,
+    ]);
+  });
+
+  it("accepts an optional known discipline on append and rejects an unknown one", () => {
+    expect(TasteSignalAppendInputSchema.safeParse({ kind: "ReviewComment", text: "ok", discipline: "WebUi" }).success).toBe(true);
+    expect(TasteSignalAppendInputSchema.safeParse({ kind: "ReviewComment", text: "ok", discipline: "Pottery" }).success).toBe(false);
   });
 
   it("rejects an append with an unknown kind or empty text", () => {

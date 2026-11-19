@@ -6,6 +6,7 @@
 import * as fs from "fs";
 import * as path from "path";
 
+import { TASTE_DEFAULT_DISCIPLINE } from "./constants.js";
 import { getTasteSignalJournalPath } from "./taste-paths.js";
 import { TasteSignalKind, type ITasteSignal, type ITasteSignalListFilter, type TasteSignalInput } from "./types.js";
 
@@ -40,7 +41,8 @@ export function appendTasteSignal(signalInput: TasteSignalInput, dataDirOverride
 }
 
 /**
- * List journal signals oldest first, skipping lines that do not parse as a signal.
+ * List journal signals oldest first, skipping lines that do not parse as a signal and resolving a signal
+ * recorded without a discipline to WebUi.
  * @param listFilter - Optional project, kind and newest-N narrowing.
  * @param dataDirOverride - Muggle home directory to use instead of `~/.muggle-ai` (tests).
  * @returns Matching signals; empty when the journal does not exist.
@@ -59,7 +61,7 @@ export function listTasteSignals(listFilter: ITasteSignalListFilter = {}, dataDi
     try {
       const parsedLine: unknown = JSON.parse(journalLine);
       if (isTasteSignal(parsedLine)) {
-        signals.push(parsedLine);
+        signals.push({ ...parsedLine, discipline: parsedLine.discipline ?? TASTE_DEFAULT_DISCIPLINE });
       }
     } catch {
       // A line torn by an interrupted write is skipped so the rest of the journal stays readable.

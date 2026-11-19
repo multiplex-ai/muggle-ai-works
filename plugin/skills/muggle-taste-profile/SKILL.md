@@ -10,7 +10,7 @@ description: "Build, view, upload or clear the user's taste profile, which test 
 
 > Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
 
-Muggle flows append **signals** to a local journal (`~/.muggle-ai/taste/signals.jsonl`): review comments a `/muggle-do` cycle addressed, E2E feedback, approved requests. This skill distills them into the **profile** (`~/.muggle-ai/taste/profile.json`): one user-wide section plus one section per Muggle Test project. Each preference keeps its conclusion together with its context and the evidence behind it, so a wrong summary can be caught and a preference is applied only where it holds. Once uploaded, Muggle Test runs read it as guidance; a test case's steps and assertions always win over it. The journal never leaves the machine; only the short screened excerpts a preference cites as evidence do.
+Muggle flows append **signals** to a local journal (`~/.muggle-ai/taste/signals.jsonl`): review comments a `/muggle-do` cycle addressed, E2E feedback, approved requests. This skill distills them into the **profile** (`~/.muggle-ai/taste/profile.json`): one user-wide section plus one section per Muggle Test project, rendered for reading as `~/.muggle-ai/taste/profile.md` on every change. Each preference names the **discipline** it belongs to (`WebUi`, `MobileApp`, `VideoEditing`, `ImageGeneration`, `General`), so each consumer applies only its own discipline's taste plus `General`. Each preference keeps its conclusion together with its context and the evidence behind it, so a wrong summary can be caught and a preference is applied only where it holds. Once uploaded, Muggle Test runs read it as guidance; a test case's steps and assertions always win over it. The journal never leaves the machine; only the short screened excerpts a preference cites as evidence do.
 
 ## Preferences
 
@@ -38,29 +38,30 @@ If intent is ambiguous, use `AskUserQuestion` once with **Build / View / Clear**
    - `appliesWhen`: the situation the signals came from and where the conclusion holds — the screen, component, flow or kind of change ("Toolbar and navigation buttons in the dashboard", not "Everywhere"). State it no wider than the signals show; when signals from different situations disagree, keep them as separate preferences with their own contexts.
    - `evidence`: the newest 1–3 supporting signals, newest first, each `{ kind, excerpt, sourceRef, recordedAt }` copied from the journal. `excerpt` is the part of the signal's `text` that shows the taste, in the user's words, at most 300 characters; drop names, addresses and credentials from it.
    - `category`: one of `Naming`, `VisualDesign`, `Interaction`, `Copy`, `Workflow`, `QualityBar`.
+   - `discipline`: the `discipline` of its supporting signals (a signal with none counts as `WebUi`). Tag it `General` only when those signals span two or more disciplines, never from how general the wording sounds; otherwise keep signals from different disciplines in separate preferences.
    - `signalCount`: how many signals support it. `lastSeenAt`: the newest supporting signal's `recordedAt`.
    - Drop one-off fixes that state no reusable taste (a typo, a single bug).
    - Rank by `signalCount`, then `lastSeenAt`, newest first. Where two preferences conflict, keep the one with more and newer support.
    - Keep each section's statements, contexts and evidence excerpts within 8,000 characters; trim evidence to fewer entries first, then cut preferences from the bottom of the ranking.
    - `distilledAt`: now, ISO-8601.
 3. **Write.** `muggle-local-taste-profile-set` with `userSection` and `projectSections`. A rebuild sends every section, which replaces the old ones; clear a project that no longer has signals with `muggle-local-taste-profile-clear` and its `projectId`.
-4. **Show.** Print each section as a table: statement, applies when, category, signals, last seen; under each row, its evidence excerpts with their source. Invite the user to correct any preference whose statement or context misreads its evidence, then go back to step 3 with the fix.
+4. **Show.** `muggle-local-taste-profile-get`. Tell the user the readable copy is at its `viewPath` (`profile.md`), and for each section its `sectionUploadStatus`: never uploaded, matches the uploaded copy, or changed since the upload at `uploadedAt`. Print each section, grouped by discipline, as a table: statement, applies when, category, signals, last seen; under each row, its evidence excerpts with their source. Invite the user to correct any preference whose statement, context or discipline misreads its evidence, then go back to step 3 with the fix.
 5. **Upload.** Gate `tasteProfileUpload`:
    - `never` → silent footer; stop.
    - `always` → `muggle-remote-taste-profile-upload`.
    - `ask` → `muggle-remote-taste-profile-upload` first: it returns `needs-consent` with the screened profile. Show what will be sent, evidence excerpts included, then run Picker 1 and Picker 2. On `Upload it` or `Ask me next time`, call it again with `hasUserApprovedThisUpload: true`.
-6. **Report.** The tool's `message`; when `redactionCount` > 0, say how many spans were redacted. `UNAUTHORIZED` → hand off to the `muggle-login` skill, then retry step 5. `over-budget` → shorten the named sections and go back to step 3.
+6. **Report.** The tool's `message`; when `redactionCount` > 0, say how many spans were redacted. After an upload, `profile.md` shows each uploaded section as matching the uploaded copy. `UNAUTHORIZED` → hand off to the `muggle-login` skill, then retry step 5. `over-budget` → shorten the named sections and go back to step 3.
 
 ## View
 
-1. `muggle-local-taste-profile-get`; print each section as in Build step 4, with its character count against the budget. Empty → offer Build.
-2. When signed in, `muggle-remote-taste-profile-get`, and say whether the uploaded copy matches the local one (same statements, contexts and evidence per section) or is older.
+1. Show as in Build step 4, with each section's character count against the budget. Empty → offer Build.
+2. When the user asks what the server holds and is signed in, `muggle-remote-taste-profile-get` and print it.
 
 ## Clear
 
 `AskUserQuestion`: **Local profile / Uploaded profile / Both**, then whether to clear one project (`projectId`) or everything.
 
-- Local → `muggle-local-taste-profile-clear`.
+- Local → `muggle-local-taste-profile-clear`. Clearing everything also removes `profile.md` and the record of what was uploaded.
 - Uploaded → `muggle-remote-taste-profile-delete`. Future runs stop using what was deleted.
 
 The journal is kept, so a later Build can restore the profile. To forget the signals too, the user deletes `~/.muggle-ai/taste/signals.jsonl` themselves; say so, never delete it for them.

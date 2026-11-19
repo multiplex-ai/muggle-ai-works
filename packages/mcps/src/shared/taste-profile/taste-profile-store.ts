@@ -1,12 +1,13 @@
 /**
- * Local store of the distilled taste profile (`~/.muggle-ai/taste/profile.json`).
+ * Local store of the distilled taste profile (`~/.muggle-ai/taste/profile.json`), the source of truth.
  */
 
 import * as fs from "fs";
 import * as path from "path";
 
+import { TASTE_DEFAULT_DISCIPLINE } from "./constants.js";
 import { getTasteProfilePath } from "./taste-paths.js";
-import type { ITasteProfile, ITasteProfileSectionUpdate } from "./types.js";
+import type { ITasteProfile, ITasteProfileSectionUpdate, ITasteSection } from "./types.js";
 
 /**
  * A profile with no sections.
@@ -25,8 +26,18 @@ export function isTasteProfileEmpty(tasteProfile: ITasteProfile): boolean {
   return tasteProfile.userSection === null && Object.keys(tasteProfile.projectSections).length === 0;
 }
 
+function resolveSectionDisciplines(storedSection: ITasteSection): ITasteSection {
+  return {
+    ...storedSection,
+    preferences: storedSection.preferences.map((storedPreference) => ({
+      ...storedPreference,
+      discipline: storedPreference.discipline ?? TASTE_DEFAULT_DISCIPLINE,
+    })),
+  };
+}
+
 /**
- * Read the local profile.
+ * Read the local profile, resolving a preference stored without a discipline to WebUi.
  * @param dataDirOverride - Muggle home directory to use instead of `~/.muggle-ai` (tests).
  * @returns The stored profile, or an empty one when the file is missing or unreadable.
  */
@@ -38,13 +49,19 @@ export function readTasteProfile(dataDirOverride?: string): ITasteProfile {
     }
     const storedProfile = JSON.parse(fs.readFileSync(profilePath, "utf-8")) as Partial<ITasteProfile>;
     return {
-      userSection: storedProfile.userSection ?? null,
-      projectSections: storedProfile.projectSections ?? {},
+      userSection: storedProfile.userSection ? resolveSectionDisciplines(storedProfile.userSection) : null,
+      projectSections: Object.fromEntries(
+        Object.entries(storedProfile.projectSections ?? {}).map(([projectId, projectSection]) => [
+          projectId,
+          resolveSectionDisciplines(projectSection),
+        ]),
+      ),
     };
   } catch {
     return createEmptyTasteProfile();
   }
 }
+
 
 function writeTasteProfile(tasteProfile: ITasteProfile, dataDirOverride?: string): void {
   const profilePath = getTasteProfilePath(dataDirOverride);

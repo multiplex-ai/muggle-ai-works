@@ -2,6 +2,8 @@
  * Constants for the taste profile.
  */
 
+import { TasteDiscipline, TasteSectionUploadStatus } from "./types.js";
+
 /** Directory under the Muggle home directory holding the journal and the profile. */
 export const TASTE_DIR_NAME = "taste";
 
@@ -10,6 +12,31 @@ export const TASTE_SIGNAL_JOURNAL_FILE_NAME = "signals.jsonl";
 
 /** Distilled profile file name. */
 export const TASTE_PROFILE_FILE_NAME = "profile.json";
+
+/** Human-readable rendering of the profile, written beside it and never read back. */
+export const TASTE_PROFILE_VIEW_FILE_NAME = "profile.md";
+
+/** Per-section record of what was last uploaded. */
+export const TASTE_UPLOAD_STATE_FILE_NAME = "upload-state.json";
+
+/** Discipline of a stored preference or a signal that names none. */
+export const TASTE_DEFAULT_DISCIPLINE = TasteDiscipline.WebUi;
+
+/** Heading for each discipline in the readable profile, in rendering order. */
+export const TASTE_DISCIPLINE_LABELS: Readonly<Record<TasteDiscipline, string>> = {
+  [TasteDiscipline.WebUi]: "Web UI",
+  [TasteDiscipline.MobileApp]: "Mobile app",
+  [TasteDiscipline.VideoEditing]: "Video editing",
+  [TasteDiscipline.ImageGeneration]: "Image generation",
+  [TasteDiscipline.General]: "General",
+};
+
+/** Wording for each section upload status in the readable profile. */
+export const TASTE_SECTION_UPLOAD_STATUS_LABELS: Readonly<Record<TasteSectionUploadStatus, string>> = {
+  [TasteSectionUploadStatus.NeverUploaded]: "never uploaded",
+  [TasteSectionUploadStatus.MatchesUploadedCopy]: "matches uploaded copy",
+  [TasteSectionUploadStatus.ChangedSinceUpload]: "changed since upload",
+};
 
 /** Most characters one section's statements, contexts and evidence excerpts may total; the backend enforces the same budget. */
 export const TASTE_SECTION_CHARACTER_BUDGET = 8000;

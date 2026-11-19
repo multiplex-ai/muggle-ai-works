@@ -5,7 +5,13 @@
 import * as path from "path";
 
 import { getDataDir } from "../data-dir.js";
-import { TASTE_DIR_NAME, TASTE_PROFILE_FILE_NAME, TASTE_SIGNAL_JOURNAL_FILE_NAME } from "./constants.js";
+import {
+  TASTE_DIR_NAME,
+  TASTE_PROFILE_FILE_NAME,
+  TASTE_PROFILE_VIEW_FILE_NAME,
+  TASTE_SIGNAL_JOURNAL_FILE_NAME,
+  TASTE_UPLOAD_STATE_FILE_NAME,
+} from "./constants.js";
 
 /**
  * Directory holding the taste journal and profile.
@@ -32,4 +38,22 @@ export function getTasteSignalJournalPath(dataDirOverride?: string): string {
  */
 export function getTasteProfilePath(dataDirOverride?: string): string {
   return path.join(getTasteDir(dataDirOverride), TASTE_PROFILE_FILE_NAME);
+}
+
+/**
+ * Path of the human-readable profile.
+ * @param dataDirOverride - Muggle home directory to use instead of `~/.muggle-ai` (tests).
+ * @returns `~/.muggle-ai/taste/profile.md`.
+ */
+export function getTasteProfileViewPath(dataDirOverride?: string): string {
+  return path.join(getTasteDir(dataDirOverride), TASTE_PROFILE_VIEW_FILE_NAME);
+}
+
+/**
+ * Path of the per-section upload state.
+ * @param dataDirOverride - Muggle home directory to use instead of `~/.muggle-ai` (tests).
+ * @returns `~/.muggle-ai/taste/upload-state.json`.
+ */
+export function getTasteUploadStatePath(dataDirOverride?: string): string {
+  return path.join(getTasteDir(dataDirOverride), TASTE_UPLOAD_STATE_FILE_NAME);
 }

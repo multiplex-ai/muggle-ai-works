@@ -34,10 +34,13 @@ import { TasteProfileUploadOutcome } from "../mcp/tools/e2e/taste-profile-upload
 import { writePreferences } from "../shared/preferences-service.js";
 import { PreferenceKey, PreferenceValue } from "../shared/preferences-types.js";
 import { TASTE_REDACTION_MARKER, TASTE_SECTION_CHARACTER_BUDGET } from "../shared/taste-profile/constants.js";
-import { writeTasteProfileSections } from "../shared/taste-profile/taste-profile-store.js";
+import { getTasteProfileViewPath } from "../shared/taste-profile/taste-paths.js";
+import { setLocalTasteProfileSections } from "../shared/taste-profile/taste-profile-service.js";
+import { readTasteUploadState } from "../shared/taste-profile/taste-upload-state-store.js";
 import { resolveTasteProfileUploadDecision } from "../shared/taste-profile/taste-profile-upload-gate.js";
 import {
   TasteCategory,
+  TasteDiscipline,
   TasteProfileUploadDecision,
   TasteSignalKind,
   type ITasteSection,
@@ -51,6 +54,7 @@ function buildSection(statement: string): ITasteSection {
         appliesWhen: "Naming new routes and tables",
         evidence: [{ kind: TasteSignalKind.ReviewComment, excerpt: "use kebab-case here", recordedAt: "2026-11-01T00:00:00.000Z" }],
         category: TasteCategory.Naming,
+        discipline: TasteDiscipline.WebUi,
         signalCount: 3,
         lastSeenAt: "2026-11-01T00:00:00.000Z",
       },
@@ -105,7 +109,7 @@ describe("uploadTasteProfileAsync", () => {
   });
 
   it("refuses under never, even with approval", async () => {
-    writeTasteProfileSections({ userSection: buildSection("Use kebab-case routes") }, dataDir);
+    setLocalTasteProfileSections({ userSection: buildSection("Use kebab-case routes") }, dataDir);
     setUploadPreference(PreferenceValue.Never);
 
     const uploadResult = await upload(true);
@@ -115,7 +119,7 @@ describe("uploadTasteProfileAsync", () => {
   });
 
   it("asks for consent under the default ask, returning the screened profile", async () => {
-    writeTasteProfileSections({ userSection: buildSection("Ping ops@example.com on failures") }, dataDir);
+    setLocalTasteProfileSections({ userSection: buildSection("Ping ops@example.com on failures") }, dataDir);
 
     const uploadResult = await upload(false);
 
@@ -126,7 +130,7 @@ describe("uploadTasteProfileAsync", () => {
   });
 
   it("uploads the screened sections under ask with approval", async () => {
-    writeTasteProfileSections(
+    setLocalTasteProfileSections(
       { userSection: buildSection("Ping ops@example.com on failures"), projectSections: { p1: buildSection("Name tables in plural") } },
       dataDir,
     );
@@ -146,8 +150,37 @@ describe("uploadTasteProfileAsync", () => {
     expect(correlationId).toBe("test-correlation");
   });
 
+  it("sends each preference's discipline and records per-section upload state", async () => {
+    const mobileSection = buildSection("Thumb-reachable primary actions");
+    mobileSection.preferences[0].discipline = TasteDiscipline.MobileApp;
+    setLocalTasteProfileSections({ userSection: buildSection("Use kebab-case routes"), projectSections: { p1: mobileSection } }, dataDir);
+    setUploadPreference(PreferenceValue.Always);
+
+    expect(fs.readFileSync(getTasteProfileViewPath(dataDir), "utf-8")).toContain("Last uploaded: never uploaded");
+    await upload(false);
+
+    const uploadedBody = upstreamExecute.mock.calls[0][0].body;
+    expect(uploadedBody.userSection.preferences[0].discipline).toBe(TasteDiscipline.WebUi);
+    expect(uploadedBody.projectSections.p1.preferences[0].discipline).toBe(TasteDiscipline.MobileApp);
+    expect(Object.keys(readTasteUploadState(dataDir)).sort()).toEqual(["p1", "user"]);
+    const viewText = fs.readFileSync(getTasteProfileViewPath(dataDir), "utf-8");
+    expect(viewText).toContain("— matches uploaded copy");
+    expect(viewText).not.toContain("never uploaded");
+
+    setLocalTasteProfileSections({ projectSections: { p1: buildSection("Changed after upload") } }, dataDir);
+    expect(fs.readFileSync(getTasteProfileViewPath(dataDir), "utf-8")).toContain("— changed since upload");
+  });
+
+  it("records no upload state when the upload is not sent", async () => {
+    setLocalTasteProfileSections({ userSection: buildSection("Use kebab-case routes") }, dataDir);
+
+    await upload(false);
+
+    expect(readTasteUploadState(dataDir)).toEqual({});
+  });
+
   it("uploads under always without approval and omits a missing user section", async () => {
-    writeTasteProfileSections({ projectSections: { p1: buildSection("Dates as YYYY-MM-DD") } }, dataDir);
+    setLocalTasteProfileSections({ projectSections: { p1: buildSection("Dates as YYYY-MM-DD") } }, dataDir);
     setUploadPreference(PreferenceValue.Always);
 
     const uploadResult = await upload(false);
@@ -167,6 +200,7 @@ describe("uploadTasteProfileAsync", () => {
     const uploadResult = await upload(false);
 
     expect(uploadResult.outcome).toBe(TasteProfileUploadOutcome.OverBudget);
+    expect(uploadResult.message).toContain(`exceed the ${TASTE_SECTION_CHARACTER_BUDGET.toLocaleString("en-US")}-character budget`);
     expect(upstreamExecute).not.toHaveBeenCalled();
   });
 });

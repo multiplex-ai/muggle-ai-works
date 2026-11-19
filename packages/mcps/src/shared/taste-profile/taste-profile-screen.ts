@@ -3,9 +3,14 @@
  */
 
 import { TASTE_REDACTION_MARKER, TASTE_REDACTION_PATTERNS } from "./constants.js";
-import type { ITasteProfile, ITasteProfileScreenResult, ITasteSection } from "./types.js";
+import type { ITasteProfile, ITasteProfileScreenResult, ITasteSection, ITasteSectionScreenResult } from "./types.js";
 
-function screenSection(tasteSection: ITasteSection): { screenedSection: ITasteSection; redactionCount: number } {
+/**
+ * Redact one section's statements, contexts, evidence excerpts and evidence sources. The input is not modified.
+ * @param tasteSection - The section to screen.
+ * @returns The screened copy and how many spans were redacted.
+ */
+export function screenTasteSection(tasteSection: ITasteSection): ITasteSectionScreenResult {
   let sectionRedactionCount = 0;
   const redactText = (uploadedText: string): string => {
     let redactedText = uploadedText;
@@ -45,14 +50,14 @@ export function screenTasteProfile(tasteProfile: ITasteProfile): ITasteProfileSc
 
   let screenedUserSection: ITasteSection | null = null;
   if (tasteProfile.userSection) {
-    const userSectionScreen = screenSection(tasteProfile.userSection);
+    const userSectionScreen = screenTasteSection(tasteProfile.userSection);
     screenedUserSection = userSectionScreen.screenedSection;
     redactionCount += userSectionScreen.redactionCount;
   }
 
   const screenedProjectSections: Record<string, ITasteSection> = {};
   for (const [projectId, projectSection] of Object.entries(tasteProfile.projectSections)) {
-    const projectSectionScreen = screenSection(projectSection);
+    const projectSectionScreen = screenTasteSection(projectSection);
     screenedProjectSections[projectId] = projectSectionScreen.screenedSection;
     redactionCount += projectSectionScreen.redactionCount;
   }

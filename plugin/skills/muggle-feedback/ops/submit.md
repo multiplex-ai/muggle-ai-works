@@ -111,7 +111,7 @@ Always pass `projectId` and `feedbackText`. Capture each response — note `feed
 
 If a single create call fails, log the error, continue with the rest, and report the failure at the end. Do not abort the batch.
 
-For each piece that saved, record a taste signal: `muggle-local-taste-signal-append` with `kind: "E2eFeedback"`, `text` the `feedbackText`, `projectId`, and `sourceRef` the `feedback.id`. A failed append never blocks the batch.
+For each piece that saved, record a taste signal: `muggle-local-taste-signal-append` with `kind: "E2eFeedback"`, `discipline: "WebUi"`, `text` the `feedbackText`, `projectId`, and `sourceRef` the `feedback.id`. A failed append never blocks the batch.
 
 ## 5. Wait for the analysis
 

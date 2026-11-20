@@ -95,7 +95,7 @@ export interface IUpstreamCall {
   /** Query parameters. */
   queryParams?: Record<string, string | number | boolean | undefined>;
 
-  /** Request body (for POST/PUT/PATCH). */
+  /** Request body (for POST/PUT/PATCH/DELETE). */
   body?: unknown;
 
   /** Optional multipart form-data upload. */
@@ -160,6 +160,12 @@ export interface IQaToolDefinition {
 
   /** Map upstream response to tool output. */
   mapFromUpstream?: (response: IUpstreamResponse, input?: unknown) => unknown;
+
+  /**
+   * Tool output when the upstream answers NOT_FOUND because the entity has nothing saved, so the read
+   * succeeds with that answer instead of failing. Absent when NOT_FOUND is an error for the tool.
+   */
+  mapNotFound?: (input: unknown) => unknown;
 
   /**
    * Dashboard page the response is viewable on, or null when the ids it needs are missing. The

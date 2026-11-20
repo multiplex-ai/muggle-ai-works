@@ -14,7 +14,7 @@ import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
 import type { IMcpToolResult } from "../../../shared/types.js";
 
 import * as schemas from "../../e2e/contracts/index.js";
-import { GatewayError, IQaToolDefinition, IUpstreamResponse } from "../../e2e/types.js";
+import { GatewayError, IQaToolDefinition, IUpstreamResponse, McpErrorCode } from "../../e2e/types.js";
 import { getPromptServiceClient } from "../../e2e/upstream-client.js";
 import { PRODUCT_CATALOG_PATH } from "../../e2e/upstream-client-constants.js";
 import { getAuthService } from "../../local/services/index.js";
@@ -51,6 +51,20 @@ import {
   mapProjectDisplayResolutions,
   toProjectResolutionUpstreamFields,
 } from "./project-display-resolutions-transform.js";
+import { mapProjectFeatureFlags } from "./project-feature-flags-transform.js";
+import {
+  buildFeatureFlagsUpdateBody,
+  buildProjectAccessPath,
+  buildProjectGithubPath,
+  buildProjectPinPath,
+  buildProjectRunSettingsPath,
+  buildProjectTestSpecPath,
+  buildProjectWorkflowConfigPath,
+  buildProjectWorkflowConfigUpdateBody,
+  buildReportGenerationWorkflowPath,
+  buildScheduleRuntimePath,
+  buildScheduleUpdateBody,
+} from "./project-settings-upstream.js";
 import { mapRunSettingsList } from "./run-settings-list-transform.js";
 import {
   mapSecret,
@@ -79,7 +93,15 @@ import {
   pickTestCaseTestStateFields,
 } from "./test-state-upstream.js";
 import { uploadTasteProfileAsync } from "./taste-profile-upload.js";
-import { IOS_POOL_PREFIX, MUGGLE_TEST_PREFIX, TASTE_PROFILE_PATH } from "./upstream-route-constants.js";
+import {
+  IOS_POOL_PREFIX,
+  MUGGLE_TEST_PREFIX,
+  REPORT_GENERATION_WORKFLOWS_PATH,
+  SLACK_CHANNEL_PATH,
+  SLACK_CHANNELS_PATH,
+  SLACK_CONNECTION_PATH,
+  TASTE_PROFILE_PATH,
+} from "./upstream-route-constants.js";
 import { BUG_REPORTS_PATH } from "../../../shared/bug-report/index.js";
 
 /** Default workflow timeout. */
@@ -150,7 +172,7 @@ const projectTools: IQaToolDefinition[] = [
       const toolInput = input as z.infer<typeof schemas.ProjectDisplayResolutionsGetInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/project-test-spec`,
+        path: buildProjectTestSpecPath(toolInput.projectId),
         queryParams: { type: toolInput.runEnvironmentType ?? schemas.RunEnvironment.Remote },
       };
     },
@@ -641,13 +663,14 @@ const testStateTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-chaining-settings-update",
     description:
-      "Set a project's freshAccountSetStateId (the state a newly formed account set starts in, such as 'New patient'; null clears it) and parallelAccountSetLimit (the most account sets a batch runs at once). Omitted fields stay unchanged. Returns the whole catalog, as muggle-remote-test-chaining-catalog-get does.",
+      "Set a project's freshAccountSetStateId (the state a newly formed account set starts in, such as 'New patient'; null clears it), parallelAccountSetLimit (the most account sets a batch runs at once) and isStateGraphAgentEnabled (whether test case changes start the test state graph agent, off by default). Omitted fields stay unchanged. Returns the whole catalog, as muggle-remote-test-chaining-catalog-get does.",
     inputSchema: schemas.TestChainingSettingsUpdateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestChainingSettingsUpdateInputSchema>;
       const body: Record<string, unknown> = {};
       if (toolInput.freshAccountSetStateId !== undefined) body.freshAccountSetStateId = toolInput.freshAccountSetStateId;
       if (toolInput.parallelAccountSetLimit !== undefined) body.parallelAccountSetLimit = toolInput.parallelAccountSetLimit;
+      if (toolInput.isStateGraphAgentEnabled !== undefined) body.isStateGraphAgentEnabled = toolInput.isStateGraphAgentEnabled;
       return {
         method: "PUT",
         path: buildTestChainingSettingsPath(toolInput.projectId),
@@ -2326,9 +2349,456 @@ const iosPoolTools: IQaToolDefinition[] = [
   },
 ];
 
+const projectSettingsTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-project-workflow-config-get",
+    description:
+      "Get the workflow settings saved on a project — model tier, memory switches and max runtimes — which its runs inherit unless a use case, test case or run overrides them. Response shape: { projectId, isSaved, workflowParams: { llm?: { tier }, memory?: { enableSharedTestMemory?, enableEverMemOS? }, maxRunTimeMs?: { <workflow kind>: ms } } }. isSaved is false, with empty workflowParams, when the project saves none: its runs inherit the user-level settings, else the defaults.",
+    inputSchema: schemas.ProjectWorkflowConfigTargetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectWorkflowConfigTargetInputSchema>;
+      return {
+        method: "GET",
+        path: buildProjectWorkflowConfigPath(toolInput.projectId),
+      };
+    },
+    mapFromUpstream: (response, input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectWorkflowConfigTargetInputSchema>;
+      const savedConfig = response.data as { workflowParams?: Record<string, unknown> };
+      return { projectId: toolInput.projectId, isSaved: true, workflowParams: savedConfig.workflowParams ?? {} };
+    },
+    mapNotFound: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectWorkflowConfigTargetInputSchema>;
+      return { projectId: toolInput.projectId, isSaved: false, workflowParams: {} };
+    },
+  },
+  {
+    name: "muggle-remote-project-workflow-config-update",
+    description:
+      "Change the workflow settings saved on a project, which its runs inherit unless a use case, test case or run overrides them. modelTier sets the model tier, or with null clears it. Each settings group is replaced whole: passing enableSharedTestMemory or enableEverMemOS rewrites the memory group, so a memory switch left out is cleared, and maxRunTimeMs replaces every stored max runtime. Read the current settings with muggle-remote-project-workflow-config-get and pass back those to keep; groups not passed stay unchanged. Returns the config saved on the project: { id, entityType, entityId, workflowParams, createdAt, updatedAt }.",
+    inputSchema: schemas.ProjectWorkflowConfigUpdateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectWorkflowConfigUpdateInputSchema>;
+      return {
+        method: "PUT",
+        path: buildProjectWorkflowConfigPath(toolInput.projectId),
+        body: buildProjectWorkflowConfigUpdateBody(toolInput),
+      };
+    },
+  },
+  {
+    name: "muggle-remote-project-workflow-config-delete",
+    description:
+      "Delete every workflow setting saved on a project — model tier, memory switches and max runtimes together — so its runs inherit the user-level settings, else the defaults. Confirm with the user first. Returns { projectId, isDeleted: true }.",
+    inputSchema: schemas.ProjectWorkflowConfigTargetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectWorkflowConfigTargetInputSchema>;
+      return {
+        method: "DELETE",
+        path: buildProjectWorkflowConfigPath(toolInput.projectId),
+      };
+    },
+    mapFromUpstream: (_response, input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectWorkflowConfigTargetInputSchema>;
+      return { projectId: toolInput.projectId, isDeleted: true };
+    },
+  },
+  {
+    name: "muggle-remote-project-feature-flags-get",
+    description:
+      "Get a project lane's feature flags: every flag a test case may run with (enabledValues), the flags a test case that picks none runs with (defaultValues), and named flag sets (valueGroups). Response shape: { projectId, runEnvironmentType, featureFlags: { enabledValues, defaultValues, valueGroups } }. Change them with muggle-remote-project-feature-flags-update.",
+    inputSchema: schemas.ProjectFeatureFlagsGetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectFeatureFlagsGetInputSchema>;
+      return {
+        method: "GET",
+        path: buildProjectTestSpecPath(toolInput.projectId),
+        queryParams: { type: toolInput.runEnvironmentType ?? schemas.RunEnvironment.Remote },
+      };
+    },
+    mapFromUpstream: mapProjectFeatureFlags,
+  },
+  {
+    name: "muggle-remote-project-feature-flags-update",
+    description:
+      "Change a project lane's feature flags. Each field passed replaces that list or map whole and the others stay, so read the current flags with muggle-remote-project-feature-flags-get and pass back those to keep; defaultValues and every valueGroups member must be in enabledValues. Mints the lane's next project test spec version and re-resolves every test case on the lane: a test case whose flags change gets new runSettings records, which need new scripts, and its dropped records stop running, so tell the user before changing flags on a project with tests. Response shape: { projectTestSpec, testCasesResolved, createdRunSettingsIds, invalidatedRunSettingsIds, unchangedCount }.",
+    inputSchema: schemas.ProjectFeatureFlagsUpdateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectFeatureFlagsUpdateInputSchema>;
+      return {
+        method: "PUT",
+        path: buildProjectTestSpecPath(toolInput.projectId),
+        body: buildFeatureFlagsUpdateBody(toolInput),
+      };
+    },
+  },
+  {
+    name: "muggle-remote-run-settings-bump",
+    description:
+      "Change a project lane's run settings — the managed login profile, user secrets and workflow files every run on the lane uses — by minting the lane's next version; a run already started keeps the version it pinned. managedProfile points profile fields at secrets and leaves the fields it omits unchanged; userSecrets and workflowFiles each replace their whole list; fields not passed carry forward. Returns the new version: { id, projectId, laneType, version, managedProfile, userSecrets, workflowFiles, createdAt }.",
+    inputSchema: schemas.RunSettingsBumpInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.RunSettingsBumpInputSchema>;
+      const body: Record<string, unknown> = {};
+      if (toolInput.managedProfile !== undefined) body.managedProfile = toolInput.managedProfile;
+      if (toolInput.userSecrets !== undefined) body.userSecrets = toolInput.userSecrets;
+      if (toolInput.workflowFiles !== undefined) body.workflowFiles = toolInput.workflowFiles;
+      return {
+        method: "POST",
+        path: `${buildProjectRunSettingsPath(toolInput.projectId)}/bump`,
+        queryParams: { type: toolInput.runEnvironmentType ?? schemas.RunEnvironment.Remote },
+        body: body,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-managed-profile-regenerate",
+    description:
+      "Replace a project lane's managed login profile with a freshly generated identity — a new email, password and other identity secrets — in the lane's next run settings version. Tests then act as a new account, so data the old account built up is no longer reached and tests that rely on it may fail until it is rebuilt; confirm with the user first. Pass workflowRunId to move that run onto the new version. Returns the new run settings version, shaped as muggle-remote-run-settings-bump returns it.",
+    inputSchema: schemas.ManagedProfileRegenerateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ManagedProfileRegenerateInputSchema>;
+      return {
+        method: "POST",
+        path: `${buildProjectRunSettingsPath(toolInput.projectId)}/regenerate-profile`,
+        queryParams: {
+          type: toolInput.runEnvironmentType ?? schemas.RunEnvironment.Remote,
+          workflowRunId: toolInput.workflowRunId,
+        },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-managed-profile-field-set",
+    description:
+      "Point one field of a project lane's managed login profile, such as the phone number or authenticator (TOTP) secret a run captured, at a secret, on top of the run settings version baseProjectResourcesId; mints the lane's next version. Pass workflowRunId to move that run onto it. Returns the new run settings version, shaped as muggle-remote-run-settings-bump returns it.",
+    inputSchema: schemas.ManagedProfileFieldSetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ManagedProfileFieldSetInputSchema>;
+      return {
+        method: "POST",
+        path: `${buildProjectRunSettingsPath(toolInput.projectId)}/managed-profile-field`,
+        queryParams: {
+          type: toolInput.runEnvironmentType ?? schemas.RunEnvironment.Remote,
+          workflowRunId: toolInput.workflowRunId,
+        },
+        body: {
+          baseProjectResourcesId: toolInput.baseProjectResourcesId,
+          fieldName: toolInput.fieldName,
+          secretId: toolInput.secretId,
+        },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-project-pin",
+    description:
+      "Pin a project in the caller's own project list; other users' lists are unaffected. Response shape: { pinnedProjectIds }.",
+    inputSchema: schemas.ProjectPinInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectPinInputSchema>;
+      return {
+        method: "PUT",
+        path: buildProjectPinPath(toolInput.projectId),
+      };
+    },
+  },
+  {
+    name: "muggle-remote-project-unpin",
+    description: "Unpin a project from the caller's own project list. Response shape: { pinnedProjectIds }.",
+    inputSchema: schemas.ProjectPinInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectPinInputSchema>;
+      return {
+        method: "DELETE",
+        path: buildProjectPinPath(toolInput.projectId),
+      };
+    },
+  },
+];
+
+const scheduleTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-schedule-update",
+    description:
+      "Change a scheduled bulk replay (listed by muggle-remote-wf-list-ts-replay-bulk-runtimes): its name, weekly schedule, namePrefix, limit or repeatPerTestCase, or pause it (status PAUSED) and resume it (ACTIVE). Only the schedule's owner, the user who started it, may change it. schedule replaces the stored schedule whole and the run interval is derived from it; the project and test cases it replays stay fixed; omitted fields stay unchanged. Returns the updated workflow runtime.",
+    inputSchema: schemas.ScheduleUpdateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ScheduleUpdateInputSchema>;
+      return {
+        method: "PUT",
+        path: buildScheduleRuntimePath(toolInput.workflowRuntimeId),
+        body: buildScheduleUpdateBody(toolInput),
+      };
+    },
+  },
+  {
+    name: "muggle-remote-schedule-delete",
+    description:
+      "Permanently delete a scheduled bulk replay so it never runs again. Only the schedule's owner, the user who started it, may delete it. Confirm with the user first; to stop it for a while, pause it with muggle-remote-schedule-update instead. Response shape: { message, id }.",
+    inputSchema: schemas.ScheduleDeleteInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ScheduleDeleteInputSchema>;
+      return {
+        method: "DELETE",
+        path: buildScheduleRuntimePath(toolInput.workflowRuntimeId),
+      };
+    },
+  },
+];
+
+const integrationTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-slack-channel-list",
+    description:
+      "List the channels of the Slack workspace connected to a project, to pick where its reports post. Response shape: { channels, workspaceName }. Connecting Slack the first time is an OAuth sign-in in the Muggle dashboard, not available here; a project without Slack returns an error saying so.",
+    inputSchema: schemas.ProjectIntegrationTargetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectIntegrationTargetInputSchema>;
+      return {
+        method: "GET",
+        path: SLACK_CHANNELS_PATH,
+        queryParams: { projectId: toolInput.projectId },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-slack-channel-set",
+    description:
+      "Set the Slack channel a project's reports post to, and turn on Slack delivery for the project. Requires Slack already connected in the Muggle dashboard. Response shape: { success }.",
+    inputSchema: schemas.SlackChannelSetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.SlackChannelSetInputSchema>;
+      const body: Record<string, unknown> = { projectId: toolInput.projectId, channelId: toolInput.channelId };
+      if (toolInput.channelName !== undefined) body.channelName = toolInput.channelName;
+      return {
+        method: "POST",
+        path: SLACK_CHANNEL_PATH,
+        body: body,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-slack-disconnect",
+    description:
+      "Disconnect Slack from a project: its reports stop posting to Slack and the saved workspace connection is removed, so reconnecting needs the OAuth sign-in in the Muggle dashboard again. Confirm with the user first. Response shape: { success }.",
+    inputSchema: schemas.ProjectIntegrationTargetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectIntegrationTargetInputSchema>;
+      return {
+        method: "DELETE",
+        path: SLACK_CONNECTION_PATH,
+        queryParams: { projectId: toolInput.projectId },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-github-repository-list",
+    description:
+      "List the repositories the GitHub App connected to a project can reach. Response shape: { repositories: [{ id, name, fullName, owner, private, defaultBranch }] }. Connecting GitHub the first time is done in the Muggle dashboard, not available here; a project without GitHub returns NOT_FOUND.",
+    inputSchema: schemas.ProjectIntegrationTargetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectIntegrationTargetInputSchema>;
+      return {
+        method: "GET",
+        path: `${buildProjectGithubPath(toolInput.projectId)}/repositories`,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-github-config-set",
+    description:
+      "Set the repository, and optionally the pull request, a project's GitHub reports post to. Requires GitHub already connected in the Muggle dashboard. Omitting pullRequestNumber clears any stored one. Response shape: { success }.",
+    inputSchema: schemas.GithubConfigSetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.GithubConfigSetInputSchema>;
+      const body: Record<string, unknown> = { owner: toolInput.owner, repo: toolInput.repo };
+      if (toolInput.pullRequestNumber !== undefined) body.pullRequestNumber = toolInput.pullRequestNumber;
+      return {
+        method: "PUT",
+        path: `${buildProjectGithubPath(toolInput.projectId)}/config`,
+        body: body,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-github-disconnect",
+    description:
+      "Disconnect GitHub from a project: its reports stop posting to GitHub and the connection is removed, so reconnecting needs the Muggle dashboard again. Confirm with the user first. Response shape: { success }.",
+    inputSchema: schemas.ProjectIntegrationTargetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectIntegrationTargetInputSchema>;
+      return {
+        method: "DELETE",
+        path: buildProjectGithubPath(toolInput.projectId),
+      };
+    },
+  },
+];
+
+const projectAccessTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-project-access-list",
+    description:
+      "List who has access to a project and with which role. Response shape: [{ id, projectId, principalType, principalId, role, grantedByUserId, createdAt }].",
+    inputSchema: schemas.ProjectAccessListInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectAccessListInputSchema>;
+      return {
+        method: "GET",
+        path: buildProjectAccessPath(toolInput.projectId),
+      };
+    },
+  },
+  {
+    name: "muggle-remote-project-access-grant",
+    description:
+      "Give a user or team access to a project, or change the role of one that has it. The owner cannot be granted a role; ownership moves only with muggle-remote-project-ownership-transfer. To add someone by email, use muggle-remote-project-invite. Returns the saved grant, shaped as one muggle-remote-project-access-list entry.",
+    inputSchema: schemas.ProjectAccessGrantInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectAccessGrantInputSchema>;
+      return {
+        method: "POST",
+        path: buildProjectAccessPath(toolInput.projectId),
+        body: {
+          principalType: toolInput.principalType,
+          principalId: toolInput.principalId,
+          role: toolInput.role,
+        },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-project-access-revoke",
+    description:
+      "Remove a user's or team's access to a project; they can no longer open it. Confirm with the user first. Returns { projectId, principalType, principalId, isRevoked: true }.",
+    inputSchema: schemas.ProjectAccessRevokeInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectAccessRevokeInputSchema>;
+      return {
+        method: "DELETE",
+        path: buildProjectAccessPath(toolInput.projectId),
+        body: { principalType: toolInput.principalType, principalId: toolInput.principalId },
+      };
+    },
+    mapFromUpstream: (_response, input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectAccessRevokeInputSchema>;
+      return {
+        projectId: toolInput.projectId,
+        principalType: toolInput.principalType,
+        principalId: toolInput.principalId,
+        isRevoked: true,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-project-invite",
+    description:
+      "Invite someone to a project by email with a role. This SENDS AN EMAIL to that address and grants the role at once; an address with no Muggle account gets a new account and a link to set its password. Confirm the address and role with the user first. Response shape: { granted, email }.",
+    inputSchema: schemas.ProjectInviteInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectInviteInputSchema>;
+      return {
+        method: "POST",
+        path: `${buildProjectAccessPath(toolInput.projectId)}/invite`,
+        body: { email: toolInput.email, role: toolInput.role },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-project-invitation-list",
+    description:
+      "List the email invitations sent for a project. Returns up to 10 items per page by default (max 100), as { data: [{ id, projectId, email, role, inviterUserId, expiresAt, createdAt, acceptedAt }], page, pageSize, totalCount, totalPages, hasMore } — check hasMore to decide whether to fetch more pages.",
+    inputSchema: schemas.ProjectInvitationListInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectInvitationListInputSchema>;
+      return {
+        method: "GET",
+        path: `${buildProjectAccessPath(toolInput.projectId)}/invitations`,
+        queryParams: {
+          paginated: true,
+          page: toolInput.page,
+          pageSize: toolInput.pageSize,
+          sortBy: toolInput.sortBy,
+          sortOrder: toolInput.sortOrder,
+        },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-project-ownership-transfer",
+    description:
+      "Make another user the owner of a project. Only the current owner can do this, and only the new owner can reverse it: the previous owner becomes a MAINTAINER, and the schedules they created on the project move to the new owner. Confirm with the user first. Returns { projectId, newOwnerUserId, isTransferred: true }.",
+    inputSchema: schemas.ProjectOwnershipTransferInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectOwnershipTransferInputSchema>;
+      return {
+        method: "POST",
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/transfer-ownership`,
+        body: { newOwnerUserId: toolInput.newOwnerUserId },
+      };
+    },
+    mapFromUpstream: (_response, input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectOwnershipTransferInputSchema>;
+      return { projectId: toolInput.projectId, newOwnerUserId: toolInput.newOwnerUserId, isTransferred: true };
+    },
+  },
+];
+
+const reportGenerationTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-report-generation-list",
+    description:
+      "List a project's report generation workflows, to find the workflowId muggle-remote-report-generation-get and muggle-remote-report-generation-update take. Returns every match unpaginated: [{ id, name, description, projectId, reportType, createdAt, updatedAt }].",
+    inputSchema: schemas.ReportGenerationListInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ReportGenerationListInputSchema>;
+      return {
+        method: "GET",
+        path: REPORT_GENERATION_WORKFLOWS_PATH,
+        queryParams: { projectId: toolInput.projectId, reportType: toolInput.reportType },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-report-generation-get",
+    description:
+      "Get a report generation workflow: its name, description, project and reportType (summary, detailed, custom or comprehensive).",
+    inputSchema: schemas.ReportGenerationGetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ReportGenerationGetInputSchema>;
+      return {
+        method: "GET",
+        path: buildReportGenerationWorkflowPath(toolInput.workflowId),
+      };
+    },
+  },
+  {
+    name: "muggle-remote-report-generation-update",
+    description:
+      "Change a report generation workflow's name, description or reportType; its project never changes. Omitted fields stay unchanged. Returns the updated workflow.",
+    inputSchema: schemas.ReportGenerationUpdateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ReportGenerationUpdateInputSchema>;
+      const body: Record<string, unknown> = {};
+      if (toolInput.name !== undefined) body.name = toolInput.name;
+      if (toolInput.description !== undefined) body.description = toolInput.description;
+      if (toolInput.reportType !== undefined) body.reportType = toolInput.reportType;
+      return {
+        method: "PUT",
+        path: buildReportGenerationWorkflowPath(toolInput.workflowId),
+        body: body,
+      };
+    },
+  },
+];
+
 /** All cloud E2E tool definitions (muggle-remote-* prefix). */
 export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...projectTools,
+  ...projectSettingsTools,
+  ...projectAccessTools,
+  ...integrationTools,
   ...useCaseTools,
   ...testCaseTools,
   ...testStateTools,
@@ -2336,7 +2806,9 @@ export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...testScriptTools,
   ...actionScriptTools,
   ...workflowTools,
+  ...scheduleTools,
   ...reportTools,
+  ...reportGenerationTools,
   ...secretTools,
   ...prdFileTools,
   ...pricingTools,
@@ -2442,6 +2914,12 @@ export async function executeQaTool(
         isError: false,
       };
     } catch (error) {
+      if (tool.mapNotFound && error instanceof GatewayError && error.code === McpErrorCode.NOT_FOUND) {
+        return {
+          content: JSON.stringify(tool.mapNotFound(resolvedInput), null, 2),
+          isError: false,
+        };
+      }
       if (error instanceof Error && error.message === "RECOMMENDATION_ONLY") {
         // This is a recommendation tool, return static response
         const mapper = tool.mapFromUpstream || defaultResponseMapper;

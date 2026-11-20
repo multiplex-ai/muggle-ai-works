@@ -132,7 +132,17 @@ describe("muggle-remote-test-chaining-settings-update", () => {
     expect(upstreamCall.body).toEqual({ freshAccountSetStateId: STATE_ID, parallelAccountSetLimit: 3 });
   });
 
+  it("sends the state graph agent switch, false included", () => {
+    const upstreamCall = mapToolInput("muggle-remote-test-chaining-settings-update", {
+      projectId: PROJECT_ID,
+      isStateGraphAgentEnabled: false,
+    });
+
+    expect(upstreamCall.body).toEqual({ isStateGraphAgentEnabled: false });
+  });
+
   it.each([
+    ["a state graph agent switch that is not a boolean", { projectId: PROJECT_ID, isStateGraphAgentEnabled: "yes" }],
     ["a limit below 1", { projectId: PROJECT_ID, parallelAccountSetLimit: 0 }],
     ["a limit above 20", { projectId: PROJECT_ID, parallelAccountSetLimit: 21 }],
     ["a fractional limit", { projectId: PROJECT_ID, parallelAccountSetLimit: 2.5 }],

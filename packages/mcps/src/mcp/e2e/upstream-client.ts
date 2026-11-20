@@ -23,7 +23,7 @@ import {
   McpErrorCode,
 } from "./types.js";
 
-/** Methods whose timeout may still have changed state upstream. */
+/** Methods that change state upstream: they may carry a JSON body, and a timeout may still have applied them. */
 const MUTATING_METHODS = ["POST", "PUT", "PATCH", "DELETE"];
 
 /** Allowed upstream path prefixes. */
@@ -299,7 +299,7 @@ export class PromptServiceClient {
         // No Content-Type here: axios writes multipart/form-data with the part boundary, and a
         // JSON Content-Type would make it serialize the form as JSON instead.
         requestConfig.data = this.buildMultipartBody(call.multipartFormData);
-      } else if (call.body && ["POST", "PUT", "PATCH"].includes(call.method)) {
+      } else if (call.body && MUTATING_METHODS.includes(call.method)) {
         requestConfig.data = call.body;
         requestConfig.headers = {
           ...headers,

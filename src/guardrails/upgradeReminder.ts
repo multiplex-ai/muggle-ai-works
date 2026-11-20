@@ -51,6 +51,6 @@ export function resolveUpgradeReminder(
   if (resolvePreferenceValue(CHECK_FOR_UPDATES_PREFERENCE_KEY, homeDir) === UNBOUNDED_PREFERENCE_VALUE) return undefined;
   return (
     `A newer @muggleai/works is available (${availableUpgrade.installedVersion} → ${availableUpgrade.latestVersion}). ` +
-    `Tell the user to run \`/muggle:muggle-upgrade\` to update.`
+    `Tell the user to run \`muggle upgrade\` to update, or \`/muggle:muggle-upgrade\` for the guided upgrade.`
   );
 }

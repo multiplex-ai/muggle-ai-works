@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { buildCodexInstructions } from "../src/codex-harness.js";
+import { UNAVAILABLE_STEPS_NOTE } from "../src/constants.js";
 import { buildSystemPrompt } from "../src/harness.js";
 import type { RunOptions } from "../src/types.js";
 
@@ -71,6 +72,10 @@ describe.each(PROMPT_BUILDERS)("the gate prompt under $host is built from the sk
 
   it("never reaches a support file in the skill directory", () => {
     expect(build(options)).not.toContain(SUPPORT_BODY);
+  });
+
+  it("says the steps no eval can perform count as done, so a run reaches its gate", () => {
+    expect(build(options)).toContain(UNAVAILABLE_STEPS_NOTE);
   });
 
   it("carries the scenario's preferences, which are the other half of the input", () => {

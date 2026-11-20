@@ -16,13 +16,13 @@
 
 import { z } from "zod";
 
+import { DEFAULT_TEST_CASE_ANCESTORS } from "../../../skill-gate-eval/src/constants.js";
 import type { Fixtures } from "../../../skill-gate-eval/src/types.js";
 import {
   CREATED_TEST_CASE_ID_PREFIX,
   CREATED_TEST_CASE_STATUS,
   CREATED_USE_CASE_ID_PREFIX,
   DEFAULT_ACTION_SCRIPT,
-  DEFAULT_TEST_CASE_ANCESTORS,
   DEFAULT_TEST_SCRIPT,
   EMPTY_MOCK_LIST,
 } from "../constants.js";

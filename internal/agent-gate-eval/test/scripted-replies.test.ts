@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_TEST_CASE_ANCESTORS } from "../../skill-gate-eval/src/constants.js";
 import {
   DEFAULT_ACTION_SCRIPT,
-  DEFAULT_TEST_CASE_ANCESTORS,
   HOST_STUB_SPECS,
   NO_USER_RESPONSE,
   UNSCRIPTED_BASH_RESPONSE,

@@ -46,11 +46,13 @@ import {
   CODEX_TURN_END_EVENT,
   CODEX_UNUSED_FEATURES,
   NUMBERED_OPTION_LINE,
+  UNAVAILABLE_STEPS_NOTE,
 } from "./constants.js";
 import { askGateContractsSection, readGatePromptInputs } from "./prompt-inputs.js";
 import { loadFixtures } from "./scenario.js";
 import type {
   AskQuestionRecord,
+  ClosingMessageAnswers,
   CodexGateTraceEntry,
   CodexRunOptions,
   Fixtures,
@@ -58,11 +60,11 @@ import type {
   RunOptions,
   RunVerdict,
   Scenario,
+  ScriptedAnswer,
 } from "./types.js";
 import {
   extractFirstQuestionText,
   isGateQuestion,
-  matchAskQuestionAnswer,
   verdict,
 } from "./verdict.js";
 
@@ -130,6 +132,7 @@ export function buildCodexInstructions(opts: Pick<RunOptions, "skillsDir" | "sce
     "muggle MCP tools here return canned data, so the skill can complete without",
     "contacting real services. Only those tools and the question tool are",
     "available; nothing else is needed.",
+    UNAVAILABLE_STEPS_NOTE,
     `Where the skill says AskUserQuestion: ${codexQuestionGuidance(opts.skillsDir)}`,
   ].join("\n");
 }
@@ -168,18 +171,57 @@ function isOfferingAsOption(message: string, answer: string): boolean {
 }
 
 /**
- * The scripted pick for a turn that ended on a question, or undefined when it
- * did not end on one the scenario knows. A closing message counts as a
- * question only when it asks one — a question mark, or numbered options that
- * offer the scripted pick — so a summary that names a use case does not read
- * as the use-case picker.
+ * The scripted answers whose question a closing message asks: the topic sits
+ * on a line that asks, or the answer is offered as a numbered option. A topic
+ * the message only mentions — a recap of an earlier pick, a quote of the skill
+ * — is not asked, and answering it sends the run back to a question it has
+ * already had answered.
  */
-export function closingQuestion(message: string, scenario: Scenario, sequence: number): AskQuestionRecord | undefined {
-  const answer = matchAskQuestionAnswer(message, scenario);
-  const isAsking = message.includes("?") || (answer !== null && isOfferingAsOption(message, answer));
-  if (!isAsking) return undefined;
-  if (answer === null && !isGateQuestion(message, scenario)) return undefined;
-  return { question: message, answer: answer, sequence: sequence };
+function askedScriptedAnswers(message: string, scenario: Scenario): ScriptedAnswer[] {
+  const lines = message.split(/\r?\n/);
+  return (scenario.askQuestionAnswers ?? []).filter((scripted) =>
+    lines.some((line) => line.includes("?") && line.includes(scripted.questionContains))
+    || isOfferingAsOption(message, scripted.answer));
+}
+
+/**
+ * The single scripted pick for a message that asks in a shape
+ * `askedScriptedAnswers` does not read: its topic on one line, the question
+ * mark on another, no numbered options.
+ */
+function looselyAskedScriptedAnswer(message: string, scenario: Scenario): ScriptedAnswer | undefined {
+  if (!message.includes("?")) return undefined;
+  return (scenario.askQuestionAnswers ?? []).find((scripted) => message.includes(scripted.questionContains));
+}
+
+/**
+ * Answer a turn that ended on questions asked in prose: a record per question
+ * the message asks, all sharing `sequence`, and the reply the thread is
+ * resumed with. With questions frontloaded Codex asks several at once, so
+ * every one asked is answered — a lone answer is the pick itself, several are
+ * each set beside their topic.
+ *
+ * Output shape: `{ records: [{ question: "<message>", answer: "Open the dashboard", sequence: 3.5 }, …],
+ * reply: "test case: Successful signup with valid email\nOpen the test results: Open the dashboard" }`
+ */
+export function answerClosingMessage(message: string, scenario: Scenario, sequence: number): ClosingMessageAnswers {
+  const asked = askedScriptedAnswers(message, scenario);
+  const looselyAsked = asked.length === 0 ? looselyAskedScriptedAnswer(message, scenario) : undefined;
+  const answered = looselyAsked ? [looselyAsked] : asked;
+  if (answered.length === 0) {
+    // The gate's own question may be scripted no answer; it is still the gate firing.
+    const isUnansweredGateQuestion = message.includes("?") && isGateQuestion(message, scenario);
+    return {
+      records: isUnansweredGateQuestion ? [{ question: message, answer: null, sequence: sequence }] : [],
+      reply: null,
+    };
+  }
+  return {
+    records: answered.map((scripted) => ({ question: message, answer: scripted.answer, sequence: sequence })),
+    reply: answered.length === 1
+      ? answered[0].answer
+      : answered.map((scripted) => `${scripted.questionContains}: ${scripted.answer}`).join("\n"),
+  };
 }
 
 /** The calls the hook recorded since `fromLine`, read as the agent SDK harness records its own. */
@@ -263,12 +305,11 @@ export async function runScenarioOnceInCodex(
     for (let resumes = 0; resumes < CODEX_MAX_RESUMES; resumes++) {
       // A turn's closing question comes after every call that turn traced and before the next turn's first.
       const closingMessage = closingMessageOf(stream);
-      const question = closingQuestion(closingMessage, opts.scenario, traced - 0.5);
-      onEvent?.({ type: CODEX_TURN_END_EVENT, closingMessage: closingMessage, reply: question?.answer ?? null });
-      if (!question) break;
-      askQuestions.push(question);
-      if (question.answer === null || !thread) break;
-      stream = await takeTurn(["resume", thread, question.answer]);
+      const answered = answerClosingMessage(closingMessage, opts.scenario, traced - 0.5);
+      onEvent?.({ type: CODEX_TURN_END_EVENT, closingMessage: closingMessage, reply: answered.reply });
+      askQuestions.push(...answered.records);
+      if (answered.reply === null || !thread) break;
+      stream = await takeTurn(["resume", thread, answered.reply]);
     }
   } finally {
     fs.rmSync(profilePath, { force: true });

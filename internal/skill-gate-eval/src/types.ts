@@ -28,6 +28,8 @@ export interface Fixtures {
   useCases?: unknown;
   testCases?: unknown;
   testCase?: unknown;
+  /** Canned `muggle-remote-test-case-ancestors-get` reply, for a case with prerequisites. */
+  testCaseAncestors?: unknown;
   executeResult?: unknown;
   runResult?: unknown;
   runStepsResult?: unknown;
@@ -119,6 +121,17 @@ export interface ScenarioFile {
   gate: string;
   fixturesPath: string; // relative to scenario file
   scenarios: Scenario[];
+}
+
+/** One scripted answer of a scenario: the pick for any question containing `questionContains`. */
+export type ScriptedAnswer = NonNullable<Scenario["askQuestionAnswers"]>[number];
+
+/** How the Codex harness answers a turn that ended on questions asked in prose. */
+export interface ClosingMessageAnswers {
+  /** One record per question the message asks; empty when it asks none the scenario knows. */
+  records: AskQuestionRecord[];
+  /** What the thread is resumed with, or null when no asked question has a scripted answer. */
+  reply: string | null;
 }
 
 /** One AskQuestion call captured by the harness during a run. */

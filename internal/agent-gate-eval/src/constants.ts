@@ -196,9 +196,6 @@ export const SCRIPTED_BASH_NOTE_LINES = [
   "ran and printed it; do not re-run a command whose output you already have.",
 ];
 
-/** `muggle-remote-test-case-ancestors-get`'s answer when the scenario scripts none: a root case with no prerequisites. */
-export const DEFAULT_TEST_CASE_ANCESTORS = { testCaseId: "tc-stub", ancestors: [], orphan: false };
-
 /** `muggle-remote-test-script-get`'s answer when the scenario scripts none. */
 export const DEFAULT_TEST_SCRIPT = { id: "cloud-ts-stub", steps: [] };
 

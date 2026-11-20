@@ -3,6 +3,7 @@
  *
  * Covers:
  *   - get, update and delete mapping to the project's workflow-config route
+ *   - get answering a project with nothing saved as isSaved false instead of failing
  *   - update sending only the settings groups the input touches, with a null tier clearing it
  *   - schema rejection of an empty update and of out-of-range max runtimes
  */
@@ -24,12 +25,18 @@ vi.mock("../shared/logger.js", () => {
   return { getLogger: () => fakeLogger, createChildLogger: () => fakeLogger, resetLogger: noop };
 });
 
+const mockExecute = vi.fn();
+vi.mock("../mcp/e2e/upstream-client.js", () => ({
+  getPromptServiceClient: () => ({ execute: mockExecute }),
+}));
+
 vi.mock("../shared/auth.js", () => ({
   getCallerCredentialsAsync: vi.fn(async () => ({ bearerToken: "test-token" })),
 }));
 
 import { ProjectWorkflowConfigUpdateInputSchema } from "../mcp/e2e/contracts/index.js";
-import { getQaToolByName } from "../mcp/tools/e2e/tool-registry.js";
+import { GatewayError, McpErrorCode } from "../mcp/e2e/types.js";
+import { executeQaTool, getQaToolByName } from "../mcp/tools/e2e/tool-registry.js";
 
 const PROJECT_ID = "11111111-1111-4111-8111-111111111111";
 const WORKFLOW_CONFIG_PATH = `/v1/protected/muggle-test/workflow-config/project/${PROJECT_ID}`;
@@ -46,6 +53,42 @@ describe("muggle-remote-project-workflow-config-get", () => {
     expect(upstreamCall.method).toBe("GET");
     expect(upstreamCall.path).toBe(WORKFLOW_CONFIG_PATH);
     expect(upstreamCall.body).toBeUndefined();
+  });
+
+  it("returns the saved settings with isSaved true", async () => {
+    mockExecute.mockResolvedValueOnce({
+      statusCode: 200,
+      data: { id: "wc-1", entityType: "project", entityId: PROJECT_ID, workflowParams: { llm: { tier: "light" } } },
+      headers: {},
+    });
+
+    const toolResult = await executeQaTool("muggle-remote-project-workflow-config-get", { projectId: PROJECT_ID }, "corr-1");
+
+    expect(toolResult.isError).toBe(false);
+    expect(JSON.parse(toolResult.content)).toEqual({
+      projectId: PROJECT_ID,
+      isSaved: true,
+      workflowParams: { llm: { tier: "light" } },
+    });
+  });
+
+  it("answers a project with nothing saved as isSaved false instead of failing", async () => {
+    mockExecute.mockRejectedValueOnce(
+      new GatewayError({ code: McpErrorCode.NOT_FOUND, message: "No workflow config found - entity inherits from parent level" }),
+    );
+
+    const toolResult = await executeQaTool("muggle-remote-project-workflow-config-get", { projectId: PROJECT_ID }, "corr-2");
+
+    expect(toolResult.isError).toBe(false);
+    expect(JSON.parse(toolResult.content)).toEqual({ projectId: PROJECT_ID, isSaved: false, workflowParams: {} });
+  });
+
+  it("still fails a not-found on a tool without a not-found answer", async () => {
+    mockExecute.mockRejectedValueOnce(new GatewayError({ code: McpErrorCode.NOT_FOUND, message: "Project not found" }));
+
+    const toolResult = await executeQaTool("muggle-remote-project-access-list", { projectId: PROJECT_ID }, "corr-3");
+
+    expect(toolResult.isError).toBe(true);
   });
 });
 

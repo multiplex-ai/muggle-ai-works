@@ -14,7 +14,7 @@ import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
 import type { IMcpToolResult } from "../../../shared/types.js";
 
 import * as schemas from "../../e2e/contracts/index.js";
-import { GatewayError, IQaToolDefinition, IUpstreamResponse } from "../../e2e/types.js";
+import { GatewayError, IQaToolDefinition, IUpstreamResponse, McpErrorCode } from "../../e2e/types.js";
 import { getPromptServiceClient } from "../../e2e/upstream-client.js";
 import { PRODUCT_CATALOG_PATH } from "../../e2e/upstream-client-constants.js";
 import { getAuthService } from "../../local/services/index.js";
@@ -2353,7 +2353,7 @@ const projectSettingsTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-project-workflow-config-get",
     description:
-      "Get the workflow settings saved on a project — model tier, memory switches and max runtimes — which its runs inherit unless a use case, test case or run overrides them. Response shape: { id, entityType, entityId, workflowParams: { llm?: { tier }, memory?: { enableSharedTestMemory?, enableEverMemOS? }, maxRunTimeMs?: { <workflow kind>: ms } }, createdAt, updatedAt }. A project with no saved settings returns NOT_FOUND: its runs inherit the user-level settings, else the defaults.",
+      "Get the workflow settings saved on a project — model tier, memory switches and max runtimes — which its runs inherit unless a use case, test case or run overrides them. Response shape: { projectId, isSaved, workflowParams: { llm?: { tier }, memory?: { enableSharedTestMemory?, enableEverMemOS? }, maxRunTimeMs?: { <workflow kind>: ms } } }. isSaved is false, with empty workflowParams, when the project saves none: its runs inherit the user-level settings, else the defaults.",
     inputSchema: schemas.ProjectWorkflowConfigTargetInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectWorkflowConfigTargetInputSchema>;
@@ -2362,11 +2362,20 @@ const projectSettingsTools: IQaToolDefinition[] = [
         path: buildProjectWorkflowConfigPath(toolInput.projectId),
       };
     },
+    mapFromUpstream: (response, input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectWorkflowConfigTargetInputSchema>;
+      const savedConfig = response.data as { workflowParams?: Record<string, unknown> };
+      return { projectId: toolInput.projectId, isSaved: true, workflowParams: savedConfig.workflowParams ?? {} };
+    },
+    mapNotFound: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectWorkflowConfigTargetInputSchema>;
+      return { projectId: toolInput.projectId, isSaved: false, workflowParams: {} };
+    },
   },
   {
     name: "muggle-remote-project-workflow-config-update",
     description:
-      "Change the workflow settings saved on a project, which its runs inherit unless a use case, test case or run overrides them. modelTier sets the model tier, or with null clears it. Each settings group is replaced whole: passing enableSharedTestMemory or enableEverMemOS rewrites the memory group, so a memory switch left out is cleared, and maxRunTimeMs replaces every stored max runtime. Read the current settings with muggle-remote-project-workflow-config-get and pass back those to keep; groups not passed stay unchanged. Returns the saved config, shaped as muggle-remote-project-workflow-config-get returns it.",
+      "Change the workflow settings saved on a project, which its runs inherit unless a use case, test case or run overrides them. modelTier sets the model tier, or with null clears it. Each settings group is replaced whole: passing enableSharedTestMemory or enableEverMemOS rewrites the memory group, so a memory switch left out is cleared, and maxRunTimeMs replaces every stored max runtime. Read the current settings with muggle-remote-project-workflow-config-get and pass back those to keep; groups not passed stay unchanged. Returns the config saved on the project: { id, entityType, entityId, workflowParams, createdAt, updatedAt }.",
     inputSchema: schemas.ProjectWorkflowConfigUpdateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectWorkflowConfigUpdateInputSchema>;
@@ -2905,6 +2914,12 @@ export async function executeQaTool(
         isError: false,
       };
     } catch (error) {
+      if (tool.mapNotFound && error instanceof GatewayError && error.code === McpErrorCode.NOT_FOUND) {
+        return {
+          content: JSON.stringify(tool.mapNotFound(resolvedInput), null, 2),
+          isError: false,
+        };
+      }
       if (error instanceof Error && error.message === "RECOMMENDATION_ONLY") {
         // This is a recommendation tool, return static response
         const mapper = tool.mapFromUpstream || defaultResponseMapper;

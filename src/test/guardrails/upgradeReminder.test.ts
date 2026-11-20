@@ -72,6 +72,7 @@ describe("resolveUpgradeReminder", () => {
   it("names both versions and the upgrade command", () => {
     const reminder = resolveUpgradeReminder(announcement, homeWithRecordedUpgrade("5.32.0|5.33.0"));
     expect(reminder).toContain("5.32.0 → 5.33.0");
+    expect(reminder).toContain("`muggle upgrade`");
     expect(reminder).toContain("/muggle:muggle-upgrade");
   });
 

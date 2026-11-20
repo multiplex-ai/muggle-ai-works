@@ -381,7 +381,7 @@ muggle init [--json | --apply <file>]  # Guided setup; saves preferences, offers
 muggle llm-source [--show]    # Who supplies the model for local runs: Muggle AI credit, your Anthropic key, a local model, or your Claude Code
 muggle llm-source --use <source> [--base-url <url> --model <name>]  # Set it without prompting
 muggle setup [--force]        # Download or update the browser runner
-muggle upgrade [--check | --version <v>] [--force]  # Install the latest (or a given) runner version
+muggle upgrade [--check | --version <v>] [--force]  # Update the runner (or install a given one), then @muggleai/works on its release lane
 muggle versions               # List installed runner versions
 muggle cleanup [--dry-run] [--all] [--skills]  # Remove old versions and obsolete skills
 muggle doctor                 # Diagnose installation problems

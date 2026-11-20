@@ -45,7 +45,7 @@ if [ -f "$upgrade_available" ] && ! guardrail_updates_disabled; then
     if [ -n "$installed_version" ] && [ -n "$latest_version" ]; then
         upgrade_notice="
 
-A newer @muggleai/works is available (${installed_version} → ${latest_version}). Tell the user to run \`/muggle:muggle-upgrade\` to update."
+A newer @muggleai/works is available (${installed_version} → ${latest_version}). Tell the user to run \`muggle upgrade\` to update, or \`/muggle:muggle-upgrade\` for the guided upgrade."
     fi
 fi
 

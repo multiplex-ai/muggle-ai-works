@@ -8,6 +8,7 @@
 
 import { z } from "zod";
 
+import { DEFAULT_TEST_CASE_ANCESTORS } from "./constants.js";
 import type { Fixtures, MockToolSpec } from "./types.js";
 
 const PERMISSIVE_SHAPE = {} as const;
@@ -39,6 +40,12 @@ export function jsonResult(value: unknown): { content: Array<{ type: "text"; tex
   return {
     content: [{ type: "text" as const, text: JSON.stringify(value) }],
   };
+}
+
+/** The id of the scenario's `testCase` fixture, or undefined when it scripts none. */
+function fixtureTestCaseId(fixtures: Fixtures): string | undefined {
+  const id = (fixtures.testCase as { id?: unknown } | undefined)?.id;
+  return typeof id === "string" ? id : undefined;
 }
 
 /** Every mock muggle tool, each answering with the scenario's fixture or a stub. */
@@ -149,6 +156,16 @@ export function mockToolSpecs(fixtures: Fixtures): MockToolSpec[] {
       description: "Test-case get (mock).",
       shape: PERMISSIVE_SHAPE,
       reply: () => fixtures.testCase ?? { id: "tc-stub", title: "Stub test case" },
+    },
+    {
+      name: "muggle-remote-test-case-ancestors-get",
+      description: "A test case's prerequisite chain in the test-plan graph (mock).",
+      shape: PERMISSIVE_SHAPE,
+      reply: () =>
+        fixtures.testCaseAncestors ?? {
+          ...DEFAULT_TEST_CASE_ANCESTORS,
+          testCaseId: fixtureTestCaseId(fixtures) ?? DEFAULT_TEST_CASE_ANCESTORS.testCaseId,
+        },
     },
     {
       name: "muggle-remote-test-script-list",

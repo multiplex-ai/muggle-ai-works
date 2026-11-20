@@ -21,7 +21,7 @@ Two lanes ship on npm, each with its own dist-tag:
 | stable | `latest` | `5.15.0` |
 | staging | `staging` | `5.16.0-staging.109` |
 
-**The lane is read off the installed build, never chosen by this skill.** A version carrying a prerelease identifier is on staging; a plain release is on stable. Stable is the default, and a machine that has never installed a prerelease stays there.
+**The lane is read off the installed build, never chosen by this skill.** A version carrying the `-staging.` prerelease identifier is on staging; any other is on stable. Stable is the default, and a machine that has never installed a prerelease stays there.
 
 **Upgrade within the lane, and compare against that lane's tag.** Semver orders `5.15.0-staging.106` *below* `5.15.0`, so a staging build measured against `latest` looks out of date — that comparison silently moves a staging user onto stable and takes away the lane they were testing on. It is the specific bug this section exists to prevent.
 
@@ -38,19 +38,18 @@ Two lanes ship on npm, each with its own dist-tag:
 
    Read the lane off the installed version per the table above, then take that lane's tag as the upgrade target. Do not compare across lanes.
 
-3. **If the installed CLI is behind its own lane's tag**, upgrade the CLI before touching Electron. Install the **tag**, not a version string, so the lane keeps resolving on later runs:
-   - stable, npm: `npm install -g @muggleai/works@latest` — pnpm: `pnpm add -g @muggleai/works@latest`
-   - staging, npm: `npm install -g @muggleai/works@staging` — pnpm: `pnpm add -g @muggleai/works@staging`
-   - Already at the lane's tag → report "already current" and continue to step 4.
-   - If neither package manager is detected, report the situation and ask the user how the CLI was installed before proceeding.
-
-4. Run `muggle upgrade` to pull the Electron runner version the (now-current) CLI expects.
-   - Note: `muggle upgrade` only manages the Electron runner — it does NOT upgrade the CLI npm package. That is why step 3 must run first.
+3. Run `muggle upgrade`. It updates the Electron runner, then the npm global `@muggleai/works` when it is behind its own lane's tag, and prints the version each moved from and to. `muggle upgrade --check` reports the same without installing.
+   - The package step reads the lane off the version npm has installed globally and installs that lane's tag. It never crosses lanes.
    - The runner tracks published Studio releases only. When it reports "already on the latest version", that is the newest *released* runner — code merged to the Studio repo since that release is not in it, and no upgrade command can reach it until a new runner is published. Say so rather than implying the merge shipped.
 
-5. **Muggle Watch** — gate: [`autoInstallWatchService`](../muggle-preferences/preference-gates/autoInstallWatchService.md). Step 3's postinstall already acted on `always` and `never`, so print their silent footer. On `ask`, run Picker 1; on `Install it`, run `muggle watch install` and report its last line.
+4. **If `muggle upgrade` reports no npm global install, or npm fails**, upgrade the CLI by hand. Install the **tag**, not a version string, so the lane keeps resolving on later runs:
+   - stable, npm: `npm install -g @muggleai/works@latest` — pnpm: `pnpm add -g @muggleai/works@latest`
+   - staging, npm: `npm install -g @muggleai/works@staging` — pnpm: `pnpm add -g @muggleai/works@staging`
+   - If neither package manager is detected, report the situation and ask the user how the CLI was installed before proceeding.
 
-6. **Reload plugins** — the global npm install (step 3) runs a postinstall script that points Claude Code's `muggle-works` marketplace at the installed package, so the plugin loads from the version just installed — but Claude Code only picks up new skills/agents/hooks after a reload. With Muggle Watch installed, idle background sessions are restarted onto the new build within a few minutes; this session and other terminal sessions still need a reload by hand. Tell the user:
+5. **Muggle Watch** — gate: [`autoInstallWatchService`](../muggle-preferences/preference-gates/autoInstallWatchService.md). The package install's postinstall already acted on `always` and `never`, so print their silent footer. On `ask`, run Picker 1; on `Install it`, run `muggle watch install` and report its last line.
+
+6. **Reload plugins** — the global npm install (step 3 or 4) runs a postinstall script that points Claude Code's `muggle-works` marketplace at the installed package, so the plugin loads from the version just installed — but Claude Code only picks up new skills/agents/hooks after a reload. With Muggle Watch installed, idle background sessions are restarted onto the new build within a few minutes; this session and other terminal sessions still need a reload by hand. Tell the user:
 
    > Run **`/reload-plugins`** to load the updated skills, agents, and hooks.
 

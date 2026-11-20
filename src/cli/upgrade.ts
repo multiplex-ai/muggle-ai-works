@@ -1,6 +1,6 @@
 /**
- * Upgrade command - checks for and downloads the latest electron-app version.
- * Allows users to get newer electron-app versions independently of MCP updates.
+ * Upgrade command - installs the newest electron-app version, then updates the
+ * globally installed package on its own release lane.
  */
 
 import { execFile } from "child_process";
@@ -38,6 +38,9 @@ import {
   replaceStudioInstall,
 } from "./studio-install-staging.js";
 import { resolveNewestInstallableVersion } from "./studio-release/newest-release.js";
+import { FAILED_WORKS_PACKAGE_UPGRADE_OUTCOMES } from "./works-package/constants.js";
+import { runNpmCommand } from "./works-package/npm-command.js";
+import { describeWorksPackageUpgrade, upgradeWorksPackage } from "./works-package/works-package-upgrade.js";
 
 const logger = getLogger();
 
@@ -492,68 +495,33 @@ async function downloadAndInstall(
 }
 
 /**
- * Execute the upgrade command.
+ * Update npm's global install of the package on its release lane and print the versions it moved between.
+ * @param isCheckOnly - Report what an upgrade would do without installing.
+ * @throws Error when the package is left behind its lane.
+ */
+async function upgradeInstalledWorksPackage (isCheckOnly: boolean): Promise<void> {
+  const upgradeReport = await upgradeWorksPackage({ isCheckOnly: isCheckOnly, runNpm: runNpmCommand });
+  const upgradeDescription = describeWorksPackageUpgrade(upgradeReport);
+
+  if (FAILED_WORKS_PACKAGE_UPGRADE_OUTCOMES.includes(upgradeReport.outcome)) {
+    throw new Error(upgradeDescription);
+  }
+
+  console.log(`\n${upgradeDescription}`);
+}
+
+/**
+ * Execute the upgrade command: the Electron app, then the package itself.
  * @param options - Command options.
  */
 export async function upgradeCommand (options: IUpgradeOptions): Promise<void> {
   try {
-    // If specific version requested
-    if (options.version) {
-      const binaryName = getBinaryName();
-      const downloadUrl = buildElectronAppReleaseAssetUrl({
-        version: options.version,
-        assetFileName: binaryName,
-      });
+    await upgradeElectronApp(options);
 
-      await downloadAndInstall(options.version, downloadUrl);
-
-      // Auto-cleanup old versions (keep current + 1 previous)
-      const cleanupResult = cleanupOldVersions({ all: false });
-      if (cleanupResult.removed.length > 0) {
-        console.log(
-          `\nCleaned up ${cleanupResult.removed.length} old version(s), ` +
-          `freed ${formatBytes(cleanupResult.freedBytes)}`,
-        );
-      }
-      return;
-    }
-
-    // Check for updates
-    console.log("Checking for updates...");
-    const updateCheckResult = await checkForUpdates();
-
-    console.log(`Current version: ${updateCheckResult.currentVersion}`);
-    console.log(`Latest version:  ${updateCheckResult.latestVersion}`);
-
-    if (options.check) {
-      if (updateCheckResult.updateAvailable) {
-        console.log("\nUpdate available! Run 'muggle upgrade' to install.");
-      } else {
-        console.log("\nYou are on the latest version.");
-      }
-      return;
-    }
-
-    if (!updateCheckResult.updateAvailable && !options.force) {
-      console.log("\nYou are already on the latest version.");
-      console.log("Use --force to re-download the current version.");
-      return;
-    }
-
-    if (!updateCheckResult.downloadUrl) {
-      throw new Error("No download URL available");
-    }
-
-    // Download and install
-    await downloadAndInstall(updateCheckResult.latestVersion, updateCheckResult.downloadUrl);
-
-    // Auto-cleanup old versions (keep current + 1 previous)
-    const cleanupResult = cleanupOldVersions({ all: false });
-    if (cleanupResult.removed.length > 0) {
-      console.log(
-        `\nCleaned up ${cleanupResult.removed.length} old version(s), ` +
-        `freed ${formatBytes(cleanupResult.freedBytes)}`,
-      );
+    // The package goes last: npm replaces the files this process was started from.
+    // A pinned Electron version is a request about the runner alone.
+    if (!options.version) {
+      await upgradeInstalledWorksPackage(Boolean(options.check));
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -563,3 +531,68 @@ export async function upgradeCommand (options: IUpgradeOptions): Promise<void> {
   }
 }
 
+/**
+ * Check for and install the newest Electron app, or the version asked for.
+ * @param options - Command options.
+ * @throws Error when the check or the install fails.
+ */
+async function upgradeElectronApp (options: IUpgradeOptions): Promise<void> {
+  // If specific version requested
+  if (options.version) {
+    const binaryName = getBinaryName();
+    const downloadUrl = buildElectronAppReleaseAssetUrl({
+      version: options.version,
+      assetFileName: binaryName,
+    });
+
+    await downloadAndInstall(options.version, downloadUrl);
+
+    // Auto-cleanup old versions (keep current + 1 previous)
+    const cleanupResult = cleanupOldVersions({ all: false });
+    if (cleanupResult.removed.length > 0) {
+      console.log(
+        `\nCleaned up ${cleanupResult.removed.length} old version(s), ` +
+        `freed ${formatBytes(cleanupResult.freedBytes)}`,
+      );
+    }
+    return;
+  }
+
+  // Check for updates
+  console.log("Checking the Electron app for updates...");
+  const updateCheckResult = await checkForUpdates();
+
+  console.log(`Current version: ${updateCheckResult.currentVersion}`);
+  console.log(`Latest version:  ${updateCheckResult.latestVersion}`);
+
+  if (options.check) {
+    if (updateCheckResult.updateAvailable) {
+      console.log("\nUpdate available! Run 'muggle upgrade' to install.");
+    } else {
+      console.log("\nYou are on the latest version.");
+    }
+    return;
+  }
+
+  if (!updateCheckResult.updateAvailable && !options.force) {
+    console.log("\nYou are already on the latest version.");
+    console.log("Use --force to re-download the current version.");
+    return;
+  }
+
+  if (!updateCheckResult.downloadUrl) {
+    throw new Error("No download URL available");
+  }
+
+  // Download and install
+  await downloadAndInstall(updateCheckResult.latestVersion, updateCheckResult.downloadUrl);
+
+  // Auto-cleanup old versions (keep current + 1 previous)
+  const cleanupResult = cleanupOldVersions({ all: false });
+  if (cleanupResult.removed.length > 0) {
+    console.log(
+      `\nCleaned up ${cleanupResult.removed.length} old version(s), ` +
+      `freed ${formatBytes(cleanupResult.freedBytes)}`,
+    );
+  }
+}

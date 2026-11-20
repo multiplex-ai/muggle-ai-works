@@ -5,7 +5,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { fileURLToPath } from "url";
 import { closingMessageOf, mockToolNamesByCodexName, threadIdOf, turnFailureOf } from "../src/codex-cli.js";
-import { closingQuestion, codexQuestionGuidance, prepareCodexGateHome, readCodexGateTrace } from "../src/codex-harness.js";
+import { answerClosingMessage, codexQuestionGuidance, prepareCodexGateHome, readCodexGateTrace } from "../src/codex-harness.js";
 import { CODEX_EVAL_HOME_MARKER, CODEX_GATE_ANSWERS_ENV, CODEX_GATE_TRACE_ENV } from "../src/constants.js";
 import type { CodexGateTraceEntry, Scenario } from "../src/types.js";
 import { extractFirstQuestionText, matchAskQuestionAnswer } from "../src/verdict.js";
@@ -151,20 +151,97 @@ describe("reading a question Codex asks in prose", () => {
       "2. **Show full list**",
       "3. **Create new use case**",
     ].join("\n");
-    expect(closingQuestion(pickUseCase, scenario, 2.5)).toEqual({ question: pickUseCase, answer: "Sign up flow", sequence: 2.5 });
+    expect(answerClosingMessage(pickUseCase, scenario, 2.5)).toEqual({
+      records: [{ question: pickUseCase, answer: "Sign up flow", sequence: 2.5 }],
+      reply: "Sign up flow",
+    });
     const withTrailer = `${pickUseCase}\n\nThe muggle-test-feature-local skill requires you to select the use case before I run the test.`;
-    expect(closingQuestion(withTrailer, scenario, 2.5)?.answer).toBe("Sign up flow");
+    expect(answerClosingMessage(withTrailer, scenario, 2.5).reply).toBe("Sign up flow");
   });
 
   it("still answers a question that carries a question mark", () => {
-    expect(closingQuestion("Which test case should I run?\n1. Successful signup with valid email", scenario, 1)?.answer)
+    expect(answerClosingMessage("Which test case should I run?\n1. Successful signup with valid email", scenario, 1).reply)
       .toBe("Successful signup with valid email");
   });
 
   it("reads a closing summary as no question, even one that ends on numbered steps or names the use case", () => {
     const summary = "Ran the Sign up flow use case: passed.\n\nSteps:\n1. Navigate\n2. Fill email";
-    expect(closingQuestion(summary, scenario, 9)).toBeUndefined();
-    expect(closingQuestion("Done. Use case Sign up flow passed.", scenario, 9)).toBeUndefined();
+    expect(answerClosingMessage(summary, scenario, 9)).toEqual({ records: [], reply: null });
+    expect(answerClosingMessage("Done. Use case Sign up flow passed.", scenario, 9)).toEqual({ records: [], reply: null });
+  });
+
+  it("records a gate question the scenario scripts no answer for, and replies nothing", () => {
+    const gateQuestion = "Show the test browser while it runs?\n1. Yes\n2. No";
+    expect(answerClosingMessage(gateQuestion, scenario, 4)).toEqual({
+      records: [{ question: gateQuestion, answer: null, sequence: 4 }],
+      reply: null,
+    });
+  });
+});
+
+describe("a Codex turn that ends on several questions", () => {
+  const scenario = {
+    askQuestionAnswers: [
+      { questionContains: "use case", answer: "Sign up flow" },
+      { questionContains: "test case", answer: "Successful signup with valid email" },
+      { questionContains: "Open the test results", answer: "Open the dashboard" },
+    ],
+    expect: { gateQuestionSubstring: "Ask every question up front" },
+  } as Scenario;
+
+  // Closing messages real Codex reps ended on (codex-cli 0.166.0) with questions frontloaded; each was once answered "Sign up flow".
+  it("answers every question the message asks, each beside its topic", () => {
+    const testCaseAndResults = [
+      "The selected use case is **Sign up flow**. Please choose the test case and what to do with the results:",
+      "",
+      "**Test case**",
+      "",
+      "1. Successful signup with valid email",
+      "2. Show full list",
+      "3. Create new test case",
+      "",
+      "**Open the test results in your browser when this finishes?**",
+      "",
+      "1. Open the dashboard",
+      "2. Just print the link",
+    ].join("\n");
+    expect(answerClosingMessage(testCaseAndResults, scenario, 3.5)).toEqual({
+      records: [
+        { question: testCaseAndResults, answer: "Successful signup with valid email", sequence: 3.5 },
+        { question: testCaseAndResults, answer: "Open the dashboard", sequence: 3.5 },
+      ],
+      reply: "test case: Successful signup with valid email\nOpen the test results: Open the dashboard",
+    });
+  });
+
+  it("answers the question asked, not an earlier topic the message quotes", () => {
+    const quotesTheSkill = [
+      "Which test case should I run for the signup flow?",
+      "",
+      "1. **Successful signup with valid email** — verify a new user can sign up",
+      "2. **Show full list**",
+      "3. **Create new test case**",
+      "",
+      "The muggle-test-feature-local skill requires a user selection for the test case: “Ask the user to pick project, use case, and test case (do not infer).”",
+    ].join("\n");
+    expect(answerClosingMessage(quotesTheSkill, scenario, 3.5).reply).toBe("Successful signup with valid email");
+  });
+
+  it("leaves a topic the message only announces for the turn that asks it", () => {
+    const useCaseAndResults = [
+      "The workflow requires you to select a use case and test case before the run.",
+      "",
+      "Which use case should I use?",
+      "",
+      "1. **Sign up flow** — User registration end-to-end",
+      "2. Show full list",
+      "",
+      "Also, **open the test results in your browser when this finishes?**",
+      "",
+      "1. Open the dashboard",
+      "2. Just print the link",
+    ].join("\n");
+    expect(answerClosingMessage(useCaseAndResults, scenario, 1.5).reply).toBe("use case: Sign up flow\nOpen the test results: Open the dashboard");
   });
 });
 

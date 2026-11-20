@@ -109,5 +109,19 @@ export const CODEX_TURN_END_EVENT = "gate_eval.turn_end";
 /** One numbered option of a question asked in prose: `1. Sign up flow`, `2) **Show full list**`. */
 export const NUMBERED_OPTION_LINE = /^\s*\d+[.)]\s+\S/;
 
+/** `muggle-remote-test-case-ancestors-get`'s answer when the scenario scripts none: a root case with no prerequisites. */
+export const DEFAULT_TEST_CASE_ANCESTORS = { testCaseId: "tc-stub", ancestors: [], orphan: false };
+
+/**
+ * What both hosts' prompts say about the steps a skill takes before a run that
+ * no eval can perform. A skill halts when one of them fails, and a model that
+ * reads "unavailable" as "failed" stops before the gate under test is reached.
+ */
+export const UNAVAILABLE_STEPS_NOTE = [
+  "A skill invoked through the `Skill` tool, such as `muggle-test-prepare`, and a",
+  "readiness probe cannot run in this harness. When the skill under test reaches",
+  "one, treat it as having run and reported ready, and continue with the next step.",
+].join("\n");
+
 /** The last line of a rep's transcript: the verdict it was judged to. */
 export const TRANSCRIPT_VERDICT_EVENT = "gate_eval.verdict";

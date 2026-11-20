@@ -20,7 +20,7 @@ import {
   type PermissionResult,
 } from "@anthropic-ai/claude-agent-sdk";
 
-import { ASK_QUESTION_TOOL } from "./constants.js";
+import { ASK_QUESTION_TOOL, UNAVAILABLE_STEPS_NOTE } from "./constants.js";
 import { buildMockMcpServer } from "./mock-mcp.js";
 import { askGateContractsSection, readGatePromptInputs } from "./prompt-inputs.js";
 import { loadFixtures } from "./scenario.js";
@@ -84,6 +84,7 @@ export function buildSystemPrompt(opts: RunOptions): string {
     "real services. The skill text refers to bare tool names (e.g.",
     "`muggle-local-execute-test-generation`); resolve those to",
     "`mcp__eval_mock__muggle-local-execute-test-generation` and so on.",
+    UNAVAILABLE_STEPS_NOTE,
   ].join("\n");
 }
 

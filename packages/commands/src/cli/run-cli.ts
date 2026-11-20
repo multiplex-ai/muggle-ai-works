@@ -113,10 +113,10 @@ function createProgram (): Command {
 
   program
     .command("upgrade")
-    .description("Check for and install the latest electron-app version")
-    .option("--force", "Force re-download even if already on latest")
+    .description("Update the electron-app, then @muggleai/works itself on its release lane")
+    .option("--force", "Force re-download of the electron-app even if already on latest")
     .option("--check", "Check for updates only, don't download")
-    .option("--version <version>", "Download a specific version (e.g., 1.0.2)")
+    .option("--version <version>", "Download a specific electron-app version (e.g., 1.0.2); leaves the package as it is")
     .action(upgradeCommand);
 
   program

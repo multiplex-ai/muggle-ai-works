@@ -179,6 +179,18 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-fan-out-plan",
   },
   {
+    "description": "Set the repository, and optionally the pull request, a project's GitHub reports post to. Requires GitHub already connected in the Muggle dashboard. Omitting pullRequestNumber clears any stored one. Response shape: { success }.",
+    "name": "muggle-remote-github-config-set",
+  },
+  {
+    "description": "Disconnect GitHub from a project: its reports stop posting to GitHub and the connection is removed, so reconnecting needs the Muggle dashboard again. Confirm with the user first. Response shape: { success }.",
+    "name": "muggle-remote-github-disconnect",
+  },
+  {
+    "description": "List the repositories the GitHub App connected to a project can reach. Response shape: { repositories: [{ id, name, fullName, owner, private, defaultBranch }] }. Connecting GitHub the first time is done in the Muggle dashboard, not available here; a project without GitHub returns NOT_FOUND.",
+    "name": "muggle-remote-github-repository-list",
+  },
+  {
     "description": "List the iOS simulator builds stored for a project, newest first, with digest, bundle id, branch and commit.",
     "name": "muggle-remote-ios-build-list",
   },
@@ -203,6 +215,14 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-local-run-upload",
   },
   {
+    "description": "Point one field of a project lane's managed login profile, such as the phone number or authenticator (TOTP) secret a run captured, at a secret, on top of the run settings version baseProjectResourcesId; mints the lane's next version. Pass workflowRunId to move that run onto it. Returns the new run settings version, shaped as muggle-remote-run-settings-bump returns it.",
+    "name": "muggle-remote-managed-profile-field-set",
+  },
+  {
+    "description": "Replace a project lane's managed login profile with a freshly generated identity — a new email, password and other identity secrets — in the lane's next run settings version. Tests then act as a new account, so data the old account built up is no longer reached and tests that rely on it may fail until it is rebuilt; confirm with the user first. Pass workflowRunId to move that run onto the new version. Returns the new run settings version, shaped as muggle-remote-run-settings-bump returns it.",
+    "name": "muggle-remote-managed-profile-regenerate",
+  },
+  {
     "description": "List the organizations the authenticated user is an active member of, with the user's role in each. Pass an organizationId to muggle-remote-project-create or muggle-remote-project-update to make a project organization-owned. Response shape: { organizations: [{ organizationId, name, status, role }] }.",
     "name": "muggle-remote-organization-list",
   },
@@ -223,6 +243,18 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-pricing-get",
   },
   {
+    "description": "Give a user or team access to a project, or change the role of one that has it. The owner cannot be granted a role; ownership moves only with muggle-remote-project-ownership-transfer. To add someone by email, use muggle-remote-project-invite. Returns the saved grant, shaped as one muggle-remote-project-access-list entry.",
+    "name": "muggle-remote-project-access-grant",
+  },
+  {
+    "description": "List who has access to a project and with which role. Response shape: [{ id, projectId, principalType, principalId, role, grantedByUserId, createdAt }].",
+    "name": "muggle-remote-project-access-list",
+  },
+  {
+    "description": "Remove a user's or team's access to a project; they can no longer open it. Confirm with the user first. Returns { projectId, principalType, principalId, isRevoked: true }.",
+    "name": "muggle-remote-project-access-revoke",
+  },
+  {
     "description": "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests. Pass organizationId to create it under an organization the caller belongs to; omit it for a personal project. Pass primaryResolution, compatibleResolutions and runStrategy to verify every test case at more than one viewport (e.g. desktop and phone); omit them for R_1920x1080 alone under primaryOnly.",
     "name": "muggle-remote-project-create",
   },
@@ -235,12 +267,36 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-project-display-resolutions-get",
   },
   {
+    "description": "Get a project lane's feature flags: every flag a test case may run with (enabledValues), the flags a test case that picks none runs with (defaultValues), and named flag sets (valueGroups). Response shape: { projectId, runEnvironmentType, featureFlags: { enabledValues, defaultValues, valueGroups } }. Change them with muggle-remote-project-feature-flags-update.",
+    "name": "muggle-remote-project-feature-flags-get",
+  },
+  {
+    "description": "Change a project lane's feature flags. Each field passed replaces that list or map whole and the others stay, so read the current flags with muggle-remote-project-feature-flags-get and pass back those to keep; defaultValues and every valueGroups member must be in enabledValues. Mints the lane's next project test spec version and re-resolves every test case on the lane: a test case whose flags change gets new runSettings records, which need new scripts, and its dropped records stop running, so tell the user before changing flags on a project with tests. Response shape: { projectTestSpec, testCasesResolved, createdRunSettingsIds, invalidatedRunSettingsIds, unchangedCount }.",
+    "name": "muggle-remote-project-feature-flags-update",
+  },
+  {
     "description": "Get details of a specific project by ID. Its displayOptions is the resolution list last saved on the project, primary first; read the primary and compatible resolutions in effect, and the run strategy, with muggle-remote-project-display-resolutions-get.",
     "name": "muggle-remote-project-get",
   },
   {
+    "description": "List the email invitations sent for a project. Returns up to 10 items per page by default (max 100), as { data: [{ id, projectId, email, role, inviterUserId, expiresAt, createdAt, acceptedAt }], page, pageSize, totalCount, totalPages, hasMore } — check hasMore to decide whether to fetch more pages.",
+    "name": "muggle-remote-project-invitation-list",
+  },
+  {
+    "description": "Invite someone to a project by email with a role. This SENDS AN EMAIL to that address and grants the role at once; an address with no Muggle account gets a new account and a link to set its password. Confirm the address and role with the user first. Response shape: { granted, email }.",
+    "name": "muggle-remote-project-invite",
+  },
+  {
     "description": "List projects accessible to the authenticated user: the projects they own plus the projects shared with them. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check \`hasMore\` to decide whether to fetch additional pages.",
     "name": "muggle-remote-project-list",
+  },
+  {
+    "description": "Make another user the owner of a project. Only the current owner can do this, and only the new owner can reverse it: the previous owner becomes a MAINTAINER, and the schedules they created on the project move to the new owner. Confirm with the user first. Returns { projectId, newOwnerUserId, isTransferred: true }.",
+    "name": "muggle-remote-project-ownership-transfer",
+  },
+  {
+    "description": "Pin a project in the caller's own project list; other users' lists are unaffected. Response shape: { pinnedProjectIds }.",
+    "name": "muggle-remote-project-pin",
   },
   {
     "description": "Get a summary of test results for a project.",
@@ -255,8 +311,24 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-project-test-scripts-summary-get",
   },
   {
+    "description": "Unpin a project from the caller's own project list. Response shape: { pinnedProjectIds }.",
+    "name": "muggle-remote-project-unpin",
+  },
+  {
     "description": "Update an existing project's details, or move a personal project into an organization the caller belongs to. primaryResolution, compatibleResolutions and runStrategy change, on both lanes, the resolutions every test case is verified at and how its runs across them start. The resolutions save as one list: compatibleResolutions requires primaryResolution and replaces the whole compatible list, and primaryResolution alone clears it, so read the current ones with muggle-remote-project-display-resolutions-get and pass back those to keep. runStrategy alone leaves the resolutions unchanged.",
     "name": "muggle-remote-project-update",
+  },
+  {
+    "description": "Delete every workflow setting saved on a project — model tier, memory switches and max runtimes together — so its runs inherit the user-level settings, else the defaults. Confirm with the user first. Returns { projectId, isDeleted: true }.",
+    "name": "muggle-remote-project-workflow-config-delete",
+  },
+  {
+    "description": "Get the workflow settings saved on a project — model tier, memory switches and max runtimes — which its runs inherit unless a use case, test case or run overrides them. Response shape: { id, entityType, entityId, workflowParams: { llm?: { tier }, memory?: { enableSharedTestMemory?, enableEverMemOS? }, maxRunTimeMs?: { <workflow kind>: ms } }, createdAt, updatedAt }. A project with no saved settings returns NOT_FOUND: its runs inherit the user-level settings, else the defaults.",
+    "name": "muggle-remote-project-workflow-config-get",
+  },
+  {
+    "description": "Change the workflow settings saved on a project, which its runs inherit unless a use case, test case or run overrides them. modelTier sets the model tier, or with null clears it. Each settings group is replaced whole: passing enableSharedTestMemory or enableEverMemOS rewrites the memory group, so a memory switch left out is cleared, and maxRunTimeMs replaces every stored max runtime. Read the current settings with muggle-remote-project-workflow-config-get and pass back those to keep; groups not passed stay unchanged. Returns the saved config, shaped as muggle-remote-project-workflow-config-get returns it.",
+    "name": "muggle-remote-project-workflow-config-update",
   },
   {
     "description": "Get recommendations and templates for CI/CD integration.",
@@ -275,6 +347,18 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-report-final-generate",
   },
   {
+    "description": "Get a report generation workflow: its name, description, project and reportType (summary, detailed, custom or comprehensive).",
+    "name": "muggle-remote-report-generation-get",
+  },
+  {
+    "description": "List a project's report generation workflows, to find the workflowId muggle-remote-report-generation-get and muggle-remote-report-generation-update take. Returns every match unpaginated: [{ id, name, description, projectId, reportType, createdAt, updatedAt }].",
+    "name": "muggle-remote-report-generation-list",
+  },
+  {
+    "description": "Change a report generation workflow's name, description or reportType; its project never changes. Omitted fields stay unchanged. Returns the updated workflow.",
+    "name": "muggle-remote-report-generation-update",
+  },
+  {
     "description": "Update report delivery preferences for a project.",
     "name": "muggle-remote-report-preferences-upsert",
   },
@@ -283,8 +367,20 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-report-stats-summary-get",
   },
   {
+    "description": "Change a project lane's run settings — the managed login profile, user secrets and workflow files every run on the lane uses — by minting the lane's next version; a run already started keeps the version it pinned. managedProfile points profile fields at secrets and leaves the fields it omits unchanged; userSecrets and workflowFiles each replace their whole list; fields not passed carry forward. Returns the new version: { id, projectId, laneType, version, managedProfile, userSecrets, workflowFiles, createdAt }.",
+    "name": "muggle-remote-run-settings-bump",
+  },
+  {
     "description": "List a test case's runSettings records in one lane — one per resolution and feature-flag combination its test spec selects — so a run can name a record it has not run yet. Response shape: { runSettingsList: [{ runSettingsId, resolutionLabel, displayResolution, featureFlags }] }. \`resolutionLabel\` is the window size as width×height; \`displayResolution\` is the value the local execute tools take for it, absent when none matches. To run a local record, pass its runSettingsId and displayResolution to muggle-local-execute-test-generation. The list does not mark which record is primary.",
     "name": "muggle-remote-run-settings-list",
+  },
+  {
+    "description": "Permanently delete a scheduled bulk replay so it never runs again. Only the schedule's owner, the user who started it, may delete it. Confirm with the user first; to stop it for a while, pause it with muggle-remote-schedule-update instead. Response shape: { message, id }.",
+    "name": "muggle-remote-schedule-delete",
+  },
+  {
+    "description": "Change a scheduled bulk replay (listed by muggle-remote-wf-list-ts-replay-bulk-runtimes): its name, weekly schedule, namePrefix, limit or repeatPerTestCase, or pause it (status PAUSED) and resume it (ACTIVE). Only the schedule's owner, the user who started it, may change it. schedule replaces the stored schedule whole and the run interval is derived from it; the project and test cases it replays stay fixed; omitted fields stay unchanged. Returns the updated workflow runtime.",
+    "name": "muggle-remote-schedule-update",
   },
   {
     "description": "Create a new secret (credential) for a project. Returns the created secret's metadata; the value is never echoed back.",
@@ -325,6 +421,18 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
   {
     "description": "Update an existing secret. Returns the updated secret's metadata; the value is never echoed back.",
     "name": "muggle-remote-secret-update",
+  },
+  {
+    "description": "List the channels of the Slack workspace connected to a project, to pick where its reports post. Response shape: { channels, workspaceName }. Connecting Slack the first time is an OAuth sign-in in the Muggle dashboard, not available here; a project without Slack returns an error saying so.",
+    "name": "muggle-remote-slack-channel-list",
+  },
+  {
+    "description": "Set the Slack channel a project's reports post to, and turn on Slack delivery for the project. Requires Slack already connected in the Muggle dashboard. Response shape: { success }.",
+    "name": "muggle-remote-slack-channel-set",
+  },
+  {
+    "description": "Disconnect Slack from a project: its reports stop posting to Slack and the saved workspace connection is removed, so reconnecting needs the OAuth sign-in in the Muggle dashboard again. Confirm with the user first. Response shape: { success }.",
+    "name": "muggle-remote-slack-disconnect",
   },
   {
     "description": "Delete the caller's uploaded taste profile, or only one project's section when projectId is given. Future runs stop using what was deleted. The local profile is untouched; clear it with muggle-local-taste-profile-clear.",
@@ -391,7 +499,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-test-chaining-plan-get",
   },
   {
-    "description": "Set a project's freshAccountSetStateId (the state a newly formed account set starts in, such as 'New patient'; null clears it) and parallelAccountSetLimit (the most account sets a batch runs at once). Omitted fields stay unchanged. Returns the whole catalog, as muggle-remote-test-chaining-catalog-get does.",
+    "description": "Set a project's freshAccountSetStateId (the state a newly formed account set starts in, such as 'New patient'; null clears it), parallelAccountSetLimit (the most account sets a batch runs at once) and isStateGraphAgentEnabled (whether test case changes start the test state graph agent, off by default). Omitted fields stay unchanged. Returns the whole catalog, as muggle-remote-test-chaining-catalog-get does.",
     "name": "muggle-remote-test-chaining-settings-update",
   },
   {
@@ -643,33 +751,57 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-bulk-preview-job-get",
   "muggle-remote-bulk-preview-job-list",
   "muggle-remote-fan-out-plan",
+  "muggle-remote-github-config-set",
+  "muggle-remote-github-disconnect",
+  "muggle-remote-github-repository-list",
   "muggle-remote-ios-build-list",
   "muggle-remote-ios-build-upload",
   "muggle-remote-ios-run-create",
   "muggle-remote-ios-run-get",
   "muggle-remote-ios-run-steps-get",
   "muggle-remote-local-run-upload",
+  "muggle-remote-managed-profile-field-set",
+  "muggle-remote-managed-profile-regenerate",
   "muggle-remote-organization-list",
   "muggle-remote-prd-file-delete",
   "muggle-remote-prd-file-list-by-project",
   "muggle-remote-prd-file-upload",
   "muggle-remote-pricing-get",
+  "muggle-remote-project-access-grant",
+  "muggle-remote-project-access-list",
+  "muggle-remote-project-access-revoke",
   "muggle-remote-project-create",
   "muggle-remote-project-delete",
   "muggle-remote-project-display-resolutions-get",
+  "muggle-remote-project-feature-flags-get",
+  "muggle-remote-project-feature-flags-update",
   "muggle-remote-project-get",
+  "muggle-remote-project-invitation-list",
+  "muggle-remote-project-invite",
   "muggle-remote-project-list",
+  "muggle-remote-project-ownership-transfer",
+  "muggle-remote-project-pin",
   "muggle-remote-project-test-results-summary-get",
   "muggle-remote-project-test-runs-summary-get",
   "muggle-remote-project-test-scripts-summary-get",
+  "muggle-remote-project-unpin",
   "muggle-remote-project-update",
+  "muggle-remote-project-workflow-config-delete",
+  "muggle-remote-project-workflow-config-get",
+  "muggle-remote-project-workflow-config-update",
   "muggle-remote-recommend-cicd-setup",
   "muggle-remote-recommend-schedule",
   "muggle-remote-report-cost-query",
   "muggle-remote-report-final-generate",
+  "muggle-remote-report-generation-get",
+  "muggle-remote-report-generation-list",
+  "muggle-remote-report-generation-update",
   "muggle-remote-report-preferences-upsert",
   "muggle-remote-report-stats-summary-get",
+  "muggle-remote-run-settings-bump",
   "muggle-remote-run-settings-list",
+  "muggle-remote-schedule-delete",
+  "muggle-remote-schedule-update",
   "muggle-remote-secret-create",
   "muggle-remote-secret-delete",
   "muggle-remote-secret-get",
@@ -680,6 +812,9 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-secret-list",
   "muggle-remote-secret-type-list",
   "muggle-remote-secret-update",
+  "muggle-remote-slack-channel-list",
+  "muggle-remote-slack-channel-set",
+  "muggle-remote-slack-disconnect",
   "muggle-remote-taste-profile-delete",
   "muggle-remote-taste-profile-get",
   "muggle-remote-taste-profile-upload",

@@ -54,6 +54,10 @@ export const TestChainingSettingsUpdateInputSchema = z.object({
     .max(TEST_STATE_PARALLEL_ACCOUNT_SET_LIMIT_MAX)
     .optional()
     .describe(`Most account sets a batch runs at once (default ${TEST_STATE_PARALLEL_ACCOUNT_SET_LIMIT_DEFAULT})`),
+  isStateGraphAgentEnabled: z
+    .boolean()
+    .optional()
+    .describe("Whether test case changes start the test state graph agent, which places test cases on states (default false)"),
 });
 
 /** Input of muggle-remote-test-state-create. */

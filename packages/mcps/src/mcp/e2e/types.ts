@@ -95,7 +95,7 @@ export interface IUpstreamCall {
   /** Query parameters. */
   queryParams?: Record<string, string | number | boolean | undefined>;
 
-  /** Request body (for POST/PUT/PATCH). */
+  /** Request body (for POST/PUT/PATCH/DELETE). */
   body?: unknown;
 
   /** Optional multipart form-data upload. */

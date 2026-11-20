@@ -6,11 +6,13 @@ import type { DisplayResolution } from "../../local/types/enums.js";
 export interface IRawProjectTestSpecAxis {
   enabledValues?: string[];
   default?: string[];
+  valueGroups?: Record<string, string[]>;
 }
 
 /** Per-axis values of a project test spec lane, keyed by axis. */
 export interface IRawProjectTestSpecPerAxis {
   displayResolution?: IRawProjectTestSpecAxis;
+  featureFlags?: IRawProjectTestSpecAxis;
 }
 
 /**

@@ -22,3 +22,8 @@ export const RunEnvironmentInputSchema = RunEnvironmentSchema.optional().describ
   "Environment lane for the run: 'local' (developer localhost) or 'remote' (deployed). " +
     "Selects which versioned runSettings/credentials lane the cloud resolves. Omit for remote (default).",
 );
+
+/** Lane field of the project settings tools; omitting it targets the remote lane. */
+export const ProjectLaneInputSchema = RunEnvironmentSchema.optional().describe(
+  "Project lane: 'remote' (cloud runs, the default) or 'local' (developer localhost).",
+);

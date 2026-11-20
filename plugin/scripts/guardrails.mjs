@@ -2219,7 +2219,7 @@ function resolveUpgradeReminder(announcement, homeDir = homedir()) {
   const availableUpgrade = readAvailableUpgrade(homeDir);
   if (!availableUpgrade) return void 0;
   if (resolvePreferenceValue(CHECK_FOR_UPDATES_PREFERENCE_KEY, homeDir) === UNBOUNDED_PREFERENCE_VALUE) return void 0;
-  return `A newer @muggleai/works is available (${availableUpgrade.installedVersion} \u2192 ${availableUpgrade.latestVersion}). Tell the user to run \`/muggle:muggle-upgrade\` to update.`;
+  return `A newer @muggleai/works is available (${availableUpgrade.installedVersion} \u2192 ${availableUpgrade.latestVersion}). Tell the user to run \`muggle upgrade\` to update, or \`/muggle:muggle-upgrade\` for the guided upgrade.`;
 }
 
 // src/guardrails/testsGreen.ts

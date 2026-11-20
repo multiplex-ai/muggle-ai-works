@@ -83,7 +83,7 @@ describe.skipIf(!hasBash)("ensure-electron-app.sh context text", () => {
     expect(lines).toContain("- Testing user flows (signup, login, checkout, forms, dashboards)");
     expect(lines).toContain("</EXTREMELY_IMPORTANT>");
     expect(lines).toContain(
-      "A newer @muggleai/works is available (1.0.0 → 2.0.0). Tell the user to run `/muggle:muggle-upgrade` to update.",
+      "A newer @muggleai/works is available (1.0.0 → 2.0.0). Tell the user to run `muggle upgrade` to update, or `/muggle:muggle-upgrade` for the guided upgrade.",
     );
     expect(lines.some((line) => line.startsWith("Muggle Test first-run setup has not been run"))).toBe(true);
     expect(lines).toContain(

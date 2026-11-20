@@ -19,6 +19,7 @@ export const TEST_RUN_ENV = {
   MUGGLE_GUARDRAIL_GH_CALLS: "off",
   MUGGLE_STACK_SERVICE_STOPS: "off",
   MUGGLE_PR_LOOKUP: "off",
+  MUGGLE_NPM_COMMANDS: "off",
   [WATCH_QOS_LEDGER_ENV_VAR]: WATCH_QOS_LEDGER_DISABLED_VALUE,
 };
 
@@ -63,6 +64,8 @@ export default defineConfig({
     // suites claim real port numbers, so no run may stop a real process.
     // The local E2E queues rank a checkout by its open pull request; no run
     // may be ordered by whatever PR the contributor's own branch has.
+    // `muggle upgrade` runs `npm install -g`; no run may replace the machine's
+    // own global install.
     env: TEST_RUN_ENV,
     // Hundreds of fixtures mkdtemp under os.tmpdir() and never remove it, so
     // every run left thousands of directories in the real temp dir. One root

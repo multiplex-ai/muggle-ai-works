@@ -123,7 +123,7 @@ export function getHelpGuidance(): string {
     `    ${cmd("muggle setup")}            Download/update Electron app`,
     `    ${cmd("muggle setup --force")}    Force re-download`,
     `    ${cmd("muggle doctor")}           Diagnose installation issues`,
-    `    ${cmd("muggle upgrade")}          Check for updates`,
+    `    ${cmd("muggle upgrade")}          Update the Electron app and @muggleai/works`,
     `    ${cmd("muggle upgrade --check")}  Check updates without installing`,
     "",
     `  ${colorize("Local Runs:", COLORS.bold)}`,

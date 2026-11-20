@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { execFileSync } from "node:child_process";
+import { describe, it, expect, vi } from "vitest";
+import { execFileSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -93,8 +93,40 @@ describe.skipIf(!hasBash)("session-maintenance.sh release_lane_tag", () => {
   it.each([
     ["5.33.0", "latest"],
     ["5.33.0-staging.301", "staging"],
+    ["5.40.0-beta.1", "latest"],
   ])("reads the lane of %s as %s", (version, expectedTag) => {
     expect(runBash(`${load} release_lane_tag "${version}"`).stdout).toBe(expectedTag);
+  });
+});
+
+describe.skipIf(!hasBash)("session-maintenance.sh version_is_newer", () => {
+  it.each([
+    ["5.33.0", "5.32.0", true],
+    ["5.32.0", "5.32.0", false],
+    ["5.32.0", "5.33.0", false],
+    ["5.10.0", "5.9.0", true],
+    ["5.39.0-staging.100", "5.39.0-staging.99", true],
+    ["5.39.0-staging.99", "5.39.0-staging.100", false],
+    ["5.39.0-staging.360", "5.38.0-staging.359", true],
+    ["5.39.0-staging.369", "5.39.0-staging.369", false],
+    ["5.40.0", "5.40.0-beta.1", true],
+    ["5.40.0-beta.1", "5.40.0", false],
+  ])("reads %s as newer than %s: %s", (candidateVersion, installedVersion, isNewer) => {
+    const { status } = runBash(`${load} version_is_newer "${candidateVersion}" "${installedVersion}"`);
+    expect(status === 0).toBe(isNewer);
+  });
+});
+
+describe.skipIf(!hasBash)("session-maintenance.sh is_package_version", () => {
+  it.each([
+    ["5.33.0", true],
+    ["5.39.0-staging.369", true],
+    ["", false],
+    ["npmerrorcodeE500", false],
+    ["<html>", false],
+  ])("reads %j as a version: %s", (candidateText, isVersion) => {
+    const { status } = runBash(`${load} is_package_version '${candidateText}'`);
+    expect(status === 0).toBe(isVersion);
   });
 });
 
@@ -174,6 +206,36 @@ describe.skipIf(!hasBash)("session-maintenance.sh version lookup", () => {
     expect(run.upgradeAvailable).toBeUndefined();
   });
 
+  it("orders staging builds by their build number, not as text", () => {
+    const run = runLookup("5.39.0-staging.99", { latest: "5.38.0", staging: "5.39.0-staging.100" });
+    expect(run.upgradeAvailable).toBe("5.39.0-staging.99|5.39.0-staging.100");
+  });
+
+  it("measures a prerelease that is not a staging build against stable", () => {
+    const run = runLookup("5.40.0-beta.1", { latest: "5.40.0", staging: "5.41.0-staging.400" });
+    expect(run.upgradeAvailable).toBe("5.40.0-beta.1|5.40.0");
+    expect(run.npmArguments).toContain("dist-tags.latest");
+  });
+
+  it("stays silent and keeps the recorded upgrade when the registry returns nothing", () => {
+    const run = runLookup("5.32.0", {}, (cacheDirectory) => {
+      writeFileSync(join(cacheDirectory, "upgrade-available"), "5.32.0|5.33.0");
+    });
+    expect(run.upgradeAvailable).toBe("5.32.0|5.33.0");
+  });
+
+  it("records nothing when the registry answers with something that is not a version", () => {
+    const run = runLookup("5.32.0", { latest: "npm error code E500" });
+    expect(run.upgradeAvailable).toBeUndefined();
+  });
+
+  it("looks the lane up on every run, whatever an earlier build cached", () => {
+    const run = runLookup("5.32.0", { latest: "5.33.0" }, (cacheDirectory) => {
+      writeFileSync(join(cacheDirectory, "version-check"), "5.32.0|5.32.0");
+    });
+    expect(run.upgradeAvailable).toBe("5.32.0|5.33.0");
+  });
+
   it("makes no lookup and clears the notice under checkForUpdates=never", () => {
     const run = runLookup("5.32.0", { latest: "5.33.0" }, (cacheDirectory, home) => {
       writeFileSync(join(cacheDirectory, "upgrade-available"), "5.32.0|5.33.0");
@@ -186,4 +248,53 @@ describe.skipIf(!hasBash)("session-maintenance.sh version lookup", () => {
     expect(run.npmArguments).toBe("");
     expect(run.upgradeAvailable).toBeUndefined();
   });
+});
+
+describe.skipIf(!hasBash)("session-maintenance.sh version lookup beside a stuck upkeep step", () => {
+  const STUCK_SETUP_MS = 20_000;
+  const NOTICE_TIMEOUT_MS = 12_000;
+  const NOTICE_POLL_MS = 100;
+
+  // `muggle setup` never returns, as an Electron install blocked by the host does, and `timeout` hands its command
+  // straight through, as on a machine that ships none, so nothing ends the step.
+  function createStuckSetupStubs(installedVersion: string, newestVersion: string): string {
+    const stubDirectory = mkdtempSync(join(tmpdir(), "session-maintenance-stuck-"));
+    const stubs: Record<string, string> = {
+      muggle: `if [ "$1" = "setup" ]; then node -e "setTimeout(() => {}, ${STUCK_SETUP_MS})"; else echo "${installedVersion}"; fi`,
+      npm: `echo "${newestVersion}"`,
+      sleep: "exit 0",
+      timeout: 'shift 3\nexec "$@"',
+    };
+    for (const [program, body] of Object.entries(stubs)) {
+      const stubPath = join(stubDirectory, program);
+      writeFileSync(stubPath, `#!/usr/bin/env bash\n${body}\n`);
+      chmodSync(stubPath, 0o755);
+    }
+    return stubDirectory;
+  }
+
+  it("records a newer lane version while the Electron step never finishes", async () => {
+    const home = mkdtempSync(join(tmpdir(), "session-maintenance-home-"));
+    const upgradeFile = join(home, ".cache", "muggle", "upgrade-available");
+    const upkeep = spawn("bash", [scriptPath], {
+      stdio: ["pipe", "ignore", "ignore"],
+      windowsHide: true,
+      env: {
+        ...process.env,
+        PATH: `${createStuckSetupStubs("5.39.0-staging.361", "5.39.0-staging.369")}${delimiter}${process.env.PATH ?? ""}`,
+        HOME: home,
+        USERPROFILE: home,
+      },
+    });
+    upkeep.stdin.end("{}");
+    try {
+      await vi.waitFor(() => expect(existsSync(upgradeFile)).toBe(true), {
+        timeout: NOTICE_TIMEOUT_MS,
+        interval: NOTICE_POLL_MS,
+      });
+      expect(readFileSync(upgradeFile, "utf-8")).toBe("5.39.0-staging.361|5.39.0-staging.369");
+    } finally {
+      upkeep.kill();
+    }
+  }, 30_000);
 });

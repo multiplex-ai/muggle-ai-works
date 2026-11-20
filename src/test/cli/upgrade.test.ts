@@ -37,6 +37,11 @@ const childProcessMock = vi.hoisted(() => ({
   execFile: vi.fn((_c: string, _a: string[], _options: object, cb: (e: Error | null) => void) => cb(null)),
 }));
 const streamMock = vi.hoisted(() => ({ pipeline: vi.fn(async () => undefined) }));
+const npmMock = vi.hoisted(() => ({
+  runNpmCommand: vi.fn(
+    async (_npmArguments: string[]): Promise<{ exitCode: number; stdout: string; stderr: string } | undefined> => undefined,
+  ),
+}));
 
 const osMock = vi.hoisted(() => ({ platform: vi.fn(() => "win32") }));
 const procArch = vi.hoisted(() => ({ value: "x64" }));
@@ -73,6 +78,7 @@ const fsImpl = vi.hoisted(() => ({
 vi.mock("fs", () => fsImpl);
 vi.mock("child_process", () => childProcessMock);
 vi.mock("stream/promises", () => streamMock);
+vi.mock("../../cli/works-package/npm-command.js", () => npmMock);
 vi.mock("../../../packages/mcps/src/index.js", async () => ({
   ...mcpsMocks,
   ...(await vi.importActual<typeof import("../../../packages/mcps/src/shared/electron-app-executable.js")>(
@@ -248,7 +254,8 @@ describe("upgradeCommand", () => {
     mcpsMocks.getElectronAppReleaseTagPrefix.mockReturnValue("electron-app-v");
     cleanupMock.cleanupOldVersions.mockReturnValue({ removed: [], freedBytes: 0 });
     childProcessMock.execFile.mockImplementation((_c, _a, _options, cb) => cb(null));
-    logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    npmMock.runNpmCommand.mockImplementation(async () => undefined);
+    logSpy =vi.spyOn(console, "log").mockImplementation(() => undefined);
     errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     exitSpy = vi.spyOn(process, "exit").mockImplementation(((): never => undefined as never));
   });
@@ -608,6 +615,89 @@ describe("upgradeCommand", () => {
       const overridePath = join("/data", "electron-app-version-override.json");
       expect(JSON.parse(fsState.written.get(overridePath) ?? "{}").version).toBe("1.0.10");
       expect(fsState.written.has(join("/data/electron-app/1.0.10", ".install-metadata.json"))).toBe(true);
+    });
+  });
+
+  describe("updating the package itself", () => {
+    const INSTALLED_VERSION = "5.39.0-staging.361";
+    const NEWEST_VERSION = "5.39.0-staging.369";
+    const printedLines = (): string => logSpy.mock.calls.map((callArguments) => String(callArguments[0])).join("\n");
+    const npmCalls = (): string[][] => npmMock.runNpmCommand.mock.calls.map(([npmArguments]) => npmArguments);
+    const globalListing = (version: string): { exitCode: number; stdout: string; stderr: string } => ({
+      exitCode: 0,
+      stdout: JSON.stringify({ dependencies: { "@muggleai/works": { version: version } } }),
+      stderr: "",
+    });
+
+    /** npm with a global install behind its staging lane; `installExitCode` is how `npm install -g` ends. */
+    function stubNpmBehindItsLane(installExitCode: number): void {
+      let isInstalled = false;
+      npmMock.runNpmCommand.mockImplementation(async (npmArguments: string[]) => {
+        if (npmArguments[0] === "ls") return globalListing(isInstalled ? NEWEST_VERSION : INSTALLED_VERSION);
+        if (npmArguments[0] === "view") return { exitCode: 0, stdout: `${NEWEST_VERSION}\n`, stderr: "" };
+        isInstalled = installExitCode === 0;
+        return { exitCode: installExitCode, stdout: "", stderr: installExitCode === 0 ? "" : "npm error code EPERM" };
+      });
+    }
+
+    it("updates the global package on its lane after the Electron app and reports both versions", async () => {
+      stubFetchSequence([releasesResponse(["electron-app-v1.0.5"])]);
+      stubNpmBehindItsLane(0);
+
+      await upgradeCommand({});
+
+      expect(npmCalls()).toContainEqual(["install", "-g", "@muggleai/works@staging"]);
+      expect(printedLines()).toContain(`@muggleai/works updated: ${INSTALLED_VERSION} → ${NEWEST_VERSION}`);
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+
+    it("--check reports the newer package without installing it", async () => {
+      stubFetchSequence([releasesResponse(["electron-app-v1.0.5"])]);
+      stubNpmBehindItsLane(0);
+
+      await upgradeCommand({ check: true });
+
+      expect(printedLines()).toContain(`${INSTALLED_VERSION} → ${NEWEST_VERSION}`);
+      expect(npmCalls().some((npmArguments) => npmArguments[0] === "install")).toBe(false);
+    });
+
+    it("leaves the package alone when a specific Electron --version is asked for", async () => {
+      fsState.existing.add(stagedPath("1.0.9", "MuggleAI.exe"));
+      stubFetchSequence([downloadResponse(), checksumsResponse()]);
+      stubNpmBehindItsLane(0);
+
+      await upgradeCommand({ version: "1.0.9" });
+
+      expect(npmMock.runNpmCommand).not.toHaveBeenCalled();
+    });
+
+    it("exits 1 with npm's error when the package cannot be installed", async () => {
+      stubFetchSequence([releasesResponse(["electron-app-v1.0.5"])]);
+      stubNpmBehindItsLane(1);
+
+      await upgradeCommand({});
+
+      expect(String(errSpy.mock.calls[0][0])).toContain("npm error code EPERM");
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it("leaves the package alone when the Electron upgrade fails", async () => {
+      stubFetchSequence([{ ok: false, status: 500, statusText: "Server Error", headers: { get: () => null } }]);
+      stubNpmBehindItsLane(0);
+
+      await upgradeCommand({});
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(npmMock.runNpmCommand).not.toHaveBeenCalled();
+    });
+
+    it("says so and succeeds when npm has no global install", async () => {
+      stubFetchSequence([releasesResponse(["electron-app-v1.0.5"])]);
+
+      await upgradeCommand({});
+
+      expect(printedLines()).toContain("has no npm global install");
+      expect(exitSpy).not.toHaveBeenCalled();
     });
   });
 });

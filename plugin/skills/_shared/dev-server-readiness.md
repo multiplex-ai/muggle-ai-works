@@ -118,20 +118,19 @@ The server start command must capture process output to a retrievable location (
 npm start > "/tmp/dev-server-3000.log" 2>&1 &
 ```
 
-#### Windows PowerShell
+#### Windows
+
+A server started detached on Windows gets a console of its own, which opens as a visible window titled `node.exe` or `cmd.exe` that steals focus and looks like an unknown process. Always start it hidden: `-WindowStyle Hidden` in PowerShell, `/b` with CMD's `start`.
 
 ```powershell
-# Start detached and capture both stdout/stderr
-Start-Process -FilePath "npm" -ArgumentList "start" `
+# Start-Process rejects one file for both streams, so stderr gets its own
+Start-Process -FilePath "npm" -ArgumentList "start" -WindowStyle Hidden `
   -RedirectStandardOutput "$env:TEMP\dev-server-3000.log" `
-  -RedirectStandardError "$env:TEMP\dev-server-3000.log"
+  -RedirectStandardError "$env:TEMP\dev-server-3000.err.log"
 ```
 
-#### Windows CMD
-
 ```bat
-:: Start in background and capture logs
-start "" cmd /c "npm start > "%TEMP%\dev-server-3000.log" 2>&1"
+start "" /b cmd /c "npm start > "%TEMP%\dev-server-3000.log" 2>&1"
 ```
 
 ## Generic algorithm (pseudocode)
@@ -231,9 +230,9 @@ if (Test-Path $log) {
   $startLine = 0
 }
 
-Start-Process -FilePath "npm" -ArgumentList "start" `
+Start-Process -FilePath "npm" -ArgumentList "start" -WindowStyle Hidden `
   -RedirectStandardOutput $log `
-  -RedirectStandardError $log
+  -RedirectStandardError "$log.err"
 
 while ((Get-Date) -le $deadline) {
   $status = 0
@@ -251,9 +250,11 @@ while ((Get-Date) -le $deadline) {
   $allLines = if (Test-Path $log) { Get-Content $log } else { @() }
   $newLines = if ($allLines.Count -gt $startLine) { $allLines[$startLine..($allLines.Count - 1)] } else { @() }
   $newLog = ($newLines -join "`n")
+  $errLog = if (Test-Path "$log.err") { (Get-Content "$log.err") -join "`n" } else { "" }
 
-  if ($newLog -match $failPattern) {
+  if ($newLog -match $failPattern -or $errLog -match $failPattern) {
     Get-Content $log -Tail 20
+    Get-Content "$log.err" -Tail 20 -ErrorAction SilentlyContinue
     exit 1
   }
 

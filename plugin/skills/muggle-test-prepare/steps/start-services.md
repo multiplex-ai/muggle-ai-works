@@ -7,6 +7,8 @@ cd "<run-dir>" && nohup node "${CLAUDE_PLUGIN_ROOT}/scripts/guard-run.mjs" --ser
 echo $!
 ```
 
+Use this Bash form on Windows too. Never start a service with PowerShell `Start-Process` or CMD `start` instead: that skips the cap, and the service gets its own visible console window titled `node.exe` or `cmd.exe` that steals focus and looks like an unknown process.
+
 `<log>` is the service's log path under its checkout's log directory ([PID Tracking](../SKILL.md#pid-tracking)); create the directory first. Capture the PID and write the service's entry — with `headSha` from `git -C <run-dir> rev-parse HEAD` and `startedAt` — to the tracking file of the checkout it runs from. Never write an entry into another checkout's file.
 
 **Startup verification** — confirm PID alive (`kill -0 <pid> 2>/dev/null`), then run the two-stage readiness probe per [`../../_shared/dev-server-readiness.md`](../../_shared/dev-server-readiness.md) against the log. Cap log-tail at 60 s. Halt on whatever surfaces.

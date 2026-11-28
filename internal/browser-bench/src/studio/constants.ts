@@ -37,6 +37,16 @@ export const STUDIO_MODEL_SOURCE_ENV_VAR = "MUGGLE_LLM_PROVIDER";
 /** The operator's own Anthropic key, which studio adopts when the source is `anthropic`. */
 export const STUDIO_USER_API_KEY_ENV_VAR = "MUGGLE_LLM_API_KEY";
 
+/**
+ * Anthropic API credentials Claude Code prefers over its claude.ai login. The harness holds the
+ * judge's key in one of them, so a `claude-code` batch must not pass them to studio, or every
+ * Claude Code call bills that key instead of the operator's subscription.
+ */
+export const CLAUDE_CODE_API_CREDENTIAL_ENV_VARS: readonly string[] = [
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+];
+
 /** Filename for the profile studio reads as its positional auth argument. */
 export const STUDIO_AUTH_FILENAME = "studio-auth.json";
 

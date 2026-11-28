@@ -10,6 +10,25 @@ describe("buildStudioEnv", () => {
     });
   });
 
+  it("keeps the judge's Anthropic credentials away from a claude-code studio", () => {
+    const studioEnv = buildStudioEnv({
+      baseEnv: { PATH: "/bin", ANTHROPIC_API_KEY: "judge-key", ANTHROPIC_AUTH_TOKEN: "token" },
+      modelSource: ModelSource.ClaudeCode,
+    });
+
+    expect(studioEnv).toEqual({ PATH: "/bin", MUGGLE_LLM_PROVIDER: "claude-code" });
+  });
+
+  it("passes Anthropic credentials through on the anthropic source", () => {
+    const studioEnv = buildStudioEnv({
+      baseEnv: { ANTHROPIC_API_KEY: "judge-key", MUGGLE_LLM_API_KEY: "own-key" },
+      modelSource: ModelSource.Anthropic,
+    });
+
+    expect(studioEnv.ANTHROPIC_API_KEY).toBe("judge-key");
+    expect(studioEnv.MUGGLE_LLM_API_KEY).toBe("own-key");
+  });
+
   it("leaves the inherited environment as it is without a source", () => {
     expect(buildStudioEnv({ baseEnv: { PATH: "/bin", MUGGLE_LLM_PROVIDER: "local" } })).toEqual({
       PATH: "/bin",

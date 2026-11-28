@@ -1,11 +1,17 @@
 import { ModelSource } from "../domain/types";
-import { STUDIO_MODEL_SOURCE_ENV_VAR, STUDIO_USER_API_KEY_ENV_VAR } from "./constants";
+import {
+  CLAUDE_CODE_API_CREDENTIAL_ENV_VARS,
+  STUDIO_MODEL_SOURCE_ENV_VAR,
+  STUDIO_USER_API_KEY_ENV_VAR,
+} from "./constants";
 
 /**
  * The environment one studio process runs with: the harness's own, plus the batch's model source
- * when it names one. Without a source the variable is left exactly as inherited.
+ * when it names one. Without a source the variable is left exactly as inherited. A `claude-code`
+ * batch also drops the Anthropic API credentials, so Claude Code runs on the operator's claude.ai
+ * login rather than the judge's key.
  *
- * Output shape: `{ …process.env, MUGGLE_LLM_PROVIDER: "claude-code" }`
+ * Output shape: `{ …process.env without ANTHROPIC_API_KEY, MUGGLE_LLM_PROVIDER: "claude-code" }`
  */
 export const buildStudioEnv = ({
   baseEnv,
@@ -13,10 +19,16 @@ export const buildStudioEnv = ({
 }: {
   baseEnv: NodeJS.ProcessEnv;
   modelSource?: ModelSource;
-}): NodeJS.ProcessEnv =>
-  modelSource === undefined
-    ? { ...baseEnv }
-    : { ...baseEnv, [STUDIO_MODEL_SOURCE_ENV_VAR]: modelSource };
+}): NodeJS.ProcessEnv => {
+  if (modelSource === undefined) return { ...baseEnv };
+  const studioEnv: NodeJS.ProcessEnv = { ...baseEnv, [STUDIO_MODEL_SOURCE_ENV_VAR]: modelSource };
+  if (modelSource === ModelSource.ClaudeCode) {
+    for (const credentialEnvVar of CLAUDE_CODE_API_CREDENTIAL_ENV_VARS) {
+      delete studioEnv[credentialEnvVar];
+    }
+  }
+  return studioEnv;
+};
 
 /**
  * Refuses a batch whose source cannot be measured honestly. The API side of a source comparison
